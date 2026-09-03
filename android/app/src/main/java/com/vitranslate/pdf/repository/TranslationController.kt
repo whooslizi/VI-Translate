@@ -94,9 +94,19 @@ object TranslationController {
     val engineType: StateFlow<String> = _engineType.asStateFlow()
 
     private const val KEY_PAGE_SELECTION = "page_selection_input"
+    private const val KEY_ADVANCED_ENGINE_MODE = "advanced_engine_mode"
 
     private val _pageSelectionInput = MutableStateFlow("all")
     val pageSelectionInput: StateFlow<String> = _pageSelectionInput.asStateFlow()
+
+    private val _advancedEngineMode = MutableStateFlow(false)
+    val advancedEngineMode: StateFlow<Boolean> = _advancedEngineMode.asStateFlow()
+
+    fun setAdvancedEngineMode(enabled: Boolean) {
+        _advancedEngineMode.value = enabled
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()?.putBoolean(KEY_ADVANCED_ENGINE_MODE, enabled)?.apply()
+    }
 
     fun setPageSelectionInput(input: String) {
         _pageSelectionInput.value = input
@@ -145,6 +155,7 @@ object TranslationController {
         _llmBaseUrl.value = prefs.getString(KEY_LLM_BASE_URL, "https://api.openai.com/v1") ?: "https://api.openai.com/v1"
         _llmModelName.value = prefs.getString(KEY_LLM_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
         _pageSelectionInput.value = prefs.getString(KEY_PAGE_SELECTION, "all") ?: "all"
+        _advancedEngineMode.value = prefs.getBoolean(KEY_ADVANCED_ENGINE_MODE, false)
         scope.launch {
             val info = UpdateChecker().checkForUpdate()
             if (info != null && info.isNewerAvailable) {

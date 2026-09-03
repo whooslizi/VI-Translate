@@ -38,6 +38,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val llmBaseUrl = TranslationController.llmBaseUrl
     val llmModelName = TranslationController.llmModelName
     val pageSelectionInput = TranslationController.pageSelectionInput
+    val advancedEngineMode = TranslationController.advancedEngineMode
+
+    fun setAdvancedEngineMode(enabled: Boolean) = TranslationController.setAdvancedEngineMode(enabled)
 
     fun setPageSelectionInput(input: String) = TranslationController.setPageSelectionInput(input)
 

@@ -12,9 +12,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.vitranslate.pdf.ui.components.*
 import com.vitranslate.pdf.ui.theme.PDFTranslateTheme
 import com.vitranslate.pdf.viewmodel.MainViewModel
@@ -188,11 +191,13 @@ fun MainScreen(
     val llmBaseUrl by viewModel.llmBaseUrl.collectAsState()
     val llmModelName by viewModel.llmModelName.collectAsState()
     val pageSelectionInput by viewModel.pageSelectionInput.collectAsState()
+    val advancedEngineMode by viewModel.advancedEngineMode.collectAsState()
 
     var showLogDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showLlmDialog by remember { mutableStateOf(false) }
     var currentLogText by remember { mutableStateOf("") }
+    val mainScrollState = rememberScrollState()
 
     if (showLogDialog) {
         LogViewerDialog(
@@ -245,36 +250,45 @@ fun MainScreen(
             }
         )
 
-        FilePickerView(
-            hasFiles = queueItems.isNotEmpty(),
-            onPickFiles = onPickFiles,
-            onPickDirectory = onPickDirectory
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(mainScrollState)
+        ) {
+            FilePickerView(
+                hasFiles = queueItems.isNotEmpty(),
+                onPickFiles = onPickFiles,
+                onPickDirectory = onPickDirectory
+            )
 
-        ControlsView(
-            selectedLanguage = selectedLanguage,
-            onLanguageSelected = { viewModel.setSelectedLanguage(it) },
-            overwrite = overwrite,
-            onOverwriteChange = { viewModel.setOverwrite(it) },
-            customSaveDirectory = customSaveDirectory,
-            onPickSaveDirectory = onPickSaveDirectory,
-            isTranslating = isTranslating,
-            onStartTranslation = onStartTranslation,
-            onCancelTranslation = { viewModel.cancelTranslation() },
-            engineType = engineType,
-            onEngineTypeChange = { viewModel.setEngineType(it) },
-            onOpenLlmSettings = { showLlmDialog = true },
-            pageSelectionInput = pageSelectionInput,
-            onPageSelectionChange = { viewModel.setPageSelectionInput(it) }
-        )
+            ControlsView(
+                selectedLanguage = selectedLanguage,
+                onLanguageSelected = { viewModel.setSelectedLanguage(it) },
+                overwrite = overwrite,
+                onOverwriteChange = { viewModel.setOverwrite(it) },
+                customSaveDirectory = customSaveDirectory,
+                onPickSaveDirectory = onPickSaveDirectory,
+                isTranslating = isTranslating,
+                onStartTranslation = onStartTranslation,
+                onCancelTranslation = { viewModel.cancelTranslation() },
+                engineType = engineType,
+                onEngineTypeChange = { viewModel.setEngineType(it) },
+                onOpenLlmSettings = { showLlmDialog = true },
+                pageSelectionInput = pageSelectionInput,
+                onPageSelectionChange = { viewModel.setPageSelectionInput(it) },
+                advancedEngineMode = advancedEngineMode,
+                onAdvancedEngineModeChange = { viewModel.setAdvancedEngineMode(it) }
+            )
 
-        QueueView(
-            items = queueItems,
-            isTranslating = isTranslating,
-            onRemoveItem = { viewModel.removeItem(it) },
-            onClearQueue = { viewModel.clearQueue() },
-            modifier = Modifier.weight(1f)
-        )
+            QueueView(
+                items = queueItems,
+                isTranslating = isTranslating,
+                onRemoveItem = { viewModel.removeItem(it) },
+                onClearQueue = { viewModel.clearQueue() },
+                modifier = Modifier.heightIn(max = 300.dp)
+            )
+        }
 
         FooterView(
             isTranslating = isTranslating,
