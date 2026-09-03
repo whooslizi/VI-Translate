@@ -11,9 +11,9 @@ object DocLayoutModelDownloader {
 
     private const val MODEL_FILENAME = "doclayout.onnx"
     private val MODEL_URLS = listOf(
-        "https://github.com/whooslizi/VI-Translate/releases/download/android-v0.3.0/doclayout.onnx",
         "https://huggingface.co/breezedeus/pix2text-layout/resolve/main/doclayout.onnx",
-        "https://huggingface.co/layoutlm/doclayout/resolve/main/doclayout.onnx"
+        "https://huggingface.co/layoutlm/doclayout/resolve/main/doclayout.onnx",
+        "https://github.com/whooslizi/VI-Translate/releases/download/android-v0.3.1/doclayout.onnx"
     )
 
     fun getModelFile(context: Context): File {
