@@ -1238,15 +1238,12 @@ class PdfLayoutPreserver(private val context: Context) {
         stream: PDPageContentStream,
         block: TextBlock
     ) {
-        val padX = 1.0f
-        val padTop = 1.0f
-        val padBottom = 1.0f
-        // Box accessors rather than x/width, so a rotated run is covered by the
-        // tall thin rectangle it actually occupies instead of a wide flat one.
+        val padX = 0.5f
+        val padY = 0.2f
         val rectX = block.boxLeft - padX
-        val rectY = block.boxBottom - padBottom
+        val rectY = block.boxBottom - padY
         val rectW = (block.boxRight - block.boxLeft) + padX * 2.0f
-        val rectH = (block.boxTop - block.boxBottom) + padTop + padBottom
+        val rectH = (block.boxTop - block.boxBottom) + padY * 2.0f
         if (rectW <= 0f || rectH <= 0f) return
         stream.saveGraphicsState()
         @Suppress("DEPRECATION")
@@ -1747,18 +1744,13 @@ class PdfLayoutPreserver(private val context: Context) {
                     val isRaised = i > 0 && tp.yDirAdj < refDirAdj - baseFontSize * 0.08f
                     val isLowered = i > 0 && tp.yDirAdj > refDirAdj + baseFontSize * 0.08f
 
-                    val isFormula = isFontOrCategoryFormula || isSmaller
+                    val isFormula = isFontOrCategoryFormula
 
                     if (isFormula) {
-                        // Flush any accumulated body text's trailing space into
-                        // the formula run so it doesn't dangle.
                         if (formulaRun.isEmpty() && sb.isNotEmpty() && sb.last() == ' ') {
-                            // keep space before formula in body text
+                            // Keep space before formula
                         }
-                        if (isFontOrCategoryFormula) {
-                            formulaRunSizeOnly = false
-                        }
-                        // Convert to super/subscript tokens if positionally offset
+                        formulaRunSizeOnly = false
                         when {
                             isRaised -> formulaRun.append(toSuperscriptToken(ch))
                             isLowered -> formulaRun.append(toSubscriptToken(ch))
@@ -1769,7 +1761,11 @@ class PdfLayoutPreserver(private val context: Context) {
                         if (formulaRun.isNotEmpty()) {
                             flushFormulaRun()
                         }
-                        sb.append(ch)
+                        when {
+                            isRaised -> sb.append(toSuperscriptToken(ch))
+                            isLowered -> sb.append(toSubscriptToken(ch))
+                            else -> sb.append(ch)
+                        }
                     }
                 }
                 // Flush trailing formula run
