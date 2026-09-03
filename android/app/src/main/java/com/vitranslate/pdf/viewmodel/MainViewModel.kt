@@ -31,6 +31,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val statusText = TranslationController.statusText
     val lastOutputDirectory = TranslationController.lastOutputDirectory
     val updateInfo = TranslationController.updateInfo
+    val updateDownloadPercent = TranslationController.updateDownloadPercent
+    val downloadedApkUri = TranslationController.downloadedApkUri
+
+    fun downloadUpdate(onComplete: ((Uri) -> Unit)? = null) {
+        TranslationController.downloadUpdate(getApplication(), onComplete)
+    }
 
     fun setSelectedLanguage(language: TargetLanguage) =
         TranslationController.setSelectedLanguage(language)

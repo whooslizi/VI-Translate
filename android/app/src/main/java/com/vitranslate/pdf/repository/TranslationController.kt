@@ -76,6 +76,12 @@ object TranslationController {
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
+    private val _updateDownloadPercent = MutableStateFlow<Int?>(null)
+    val updateDownloadPercent: StateFlow<Int?> = _updateDownloadPercent.asStateFlow()
+
+    private val _downloadedApkUri = MutableStateFlow<Uri?>(null)
+    val downloadedApkUri: StateFlow<Uri?> = _downloadedApkUri.asStateFlow()
+
     /** File being worked on right now, for the foreground notification. */
     private val _activeFileName = MutableStateFlow<String?>(null)
     val activeFileName: StateFlow<String?> = _activeFileName.asStateFlow()
@@ -93,6 +99,24 @@ object TranslationController {
             val info = UpdateChecker().checkForUpdate()
             if (info != null && info.isNewerAvailable) {
                 _updateInfo.value = info
+            }
+        }
+    }
+
+    fun downloadUpdate(context: Context, onComplete: ((Uri) -> Unit)? = null) {
+        val info = _updateInfo.value ?: return
+        val apkUrl = info.apkUrl ?: return
+        val fileName = info.apkName ?: "PDFTranslate-${info.latestVersion}.apk"
+
+        scope.launch {
+            _updateDownloadPercent.value = 0
+            val uri = ApkDownloader(context).downloadApk(apkUrl, fileName) { percent ->
+                _updateDownloadPercent.value = percent
+            }
+            _updateDownloadPercent.value = null
+            if (uri != null) {
+                _downloadedApkUri.value = uri
+                onComplete?.invoke(uri)
             }
         }
     }

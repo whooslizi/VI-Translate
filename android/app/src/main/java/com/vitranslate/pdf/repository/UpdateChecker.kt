@@ -53,10 +53,31 @@ class UpdateChecker(private val currentVersion: String = BuildConfig.VERSION_NAM
                     val webUrl = release.optString("html_url", "").trim()
                         .ifEmpty { FALLBACK_RELEASES_URL }
 
+                    var apkUrl: String? = null
+                    var apkSize: Long = 0L
+                    var apkName: String? = null
+
+                    val assets = release.optJSONArray("assets")
+                    if (assets != null) {
+                        for (aIndex in 0 until assets.length()) {
+                            val asset = assets.optJSONObject(aIndex) ?: continue
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                apkUrl = asset.optString("browser_download_url", "")
+                                apkSize = asset.optLong("size", 0L)
+                                apkName = name
+                                break
+                            }
+                        }
+                    }
+
                     return@withContext UpdateInfo(
                         latestVersion = tagName,
                         releaseUrl = webUrl,
-                        isNewerAvailable = isNewer(tagName, currentVersion)
+                        isNewerAvailable = isNewer(tagName, currentVersion),
+                        apkUrl = apkUrl,
+                        apkSize = apkSize,
+                        apkName = apkName
                     )
                 }
                 null

@@ -93,7 +93,8 @@ class MainActivity : ComponentActivity() {
                         onPickFiles = { pickFilesLauncher.launch(arrayOf("application/pdf")) },
                         onPickDirectory = { pickDirectoryLauncher.launch(null) },
                         onPickSaveDirectory = { pickSaveDirectoryLauncher.launch(null) },
-                        onStartTranslation = { startTranslationAskingToNotify() }
+                        onStartTranslation = { startTranslationAskingToNotify() },
+                        onInstallApk = { installApk(it) }
                     )
                 }
             }
@@ -119,6 +120,26 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         viewModel.startTranslation()
+    }
+
+    fun installApk(apkUri: Uri) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!packageManager.canRequestPackageInstalls()) {
+                startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+                return
+            }
+        }
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { startActivity(intent) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -147,7 +168,8 @@ fun MainScreen(
     onPickFiles: () -> Unit,
     onPickDirectory: () -> Unit,
     onPickSaveDirectory: () -> Unit,
-    onStartTranslation: () -> Unit
+    onStartTranslation: () -> Unit,
+    onInstallApk: (Uri) -> Unit = {}
 ) {
     val queueItems by viewModel.queueItems.collectAsState()
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
@@ -159,6 +181,8 @@ fun MainScreen(
     val statusText by viewModel.statusText.collectAsState()
     val lastOutputDirectory by viewModel.lastOutputDirectory.collectAsState()
     val updateInfo by viewModel.updateInfo.collectAsState()
+    val downloadPercent by viewModel.updateDownloadPercent.collectAsState()
+    val downloadedApkUri by viewModel.downloadedApkUri.collectAsState()
 
     var showLogDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -188,6 +212,10 @@ fun MainScreen(
         HeaderView(
             appVersion = BuildConfig.VERSION_NAME,
             updateInfo = updateInfo,
+            downloadPercent = downloadPercent,
+            downloadedApkUri = downloadedApkUri,
+            onDownloadUpdate = { viewModel.downloadUpdate() },
+            onInstallApk = onInstallApk,
             onShowLog = {
                 currentLogText = viewModel.getLogContent()
                 showLogDialog = true
