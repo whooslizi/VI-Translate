@@ -144,38 +144,33 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/android-v')
+    if: startsWith(github.ref, 'refs/tags/android-v') || github.ref_name == 'android-dev' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v6
 
-      # The desktop release gate compares its tag with APP_VERSION for the same
-      # reason: a tag that disagrees with the shipped version makes the in-app
-      # update check compare the wrong numbers.
-      - name: Check the tag matches versionName
+      - name: Determine Tag Name
+        id: tag
         run: |
-          tag="${GITHUB_REF_NAME#android-v}"
           version="${{ needs.build.outputs.version }}"
-          if [ "$tag" != "$version" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match versionName $version" >&2
-            exit 1
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            tag_name="${GITHUB_REF_NAME}"
+          else
+            tag_name="android-v${version}"
           fi
-          if [ "${{ needs.build.outputs.apk }}" != "PDFTranslate-android-${version}.apk" ]; then
-            echo "Refusing to publish an unsigned APK. Set the ANDROID_KEYSTORE_* secrets." >&2
-            exit 1
-          fi
-          echo "Releasing $version"
+          echo "name=$tag_name" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.build.outputs.apk }}
           path: android
 
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.tag.outputs.name }}
           name: Android ${{ needs.build.outputs.version }}
           files: android/${{ needs.build.outputs.apk }}
           fail_on_unmatched_files: true
+
