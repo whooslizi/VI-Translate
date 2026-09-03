@@ -121,7 +121,7 @@ jobs:
         id: apk
         run: |
           version="${{ steps.version.outputs.version }}"
-          if [ "${{ steps.keystore.outputs.signed }}" = "true" ]; then
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
             source="app/build/outputs/apk/release/app-release.apk"
             name="PDFTranslate-android-${version}.apk"
           else
