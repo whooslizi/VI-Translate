@@ -139,6 +139,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)
+    implementation(project(":advanced-engine"))
 
     // Offline Native Android OCR (ML Kit) & Neural Layout Model Engine (ONNX Runtime)
     implementation("com.google.mlkit:text-recognition:16.0.1")
