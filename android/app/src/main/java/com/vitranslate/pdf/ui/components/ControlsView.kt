@@ -35,11 +35,18 @@ fun ControlsView(
     onEngineTypeChange: (String) -> Unit = {},
     onOpenLlmSettings: () -> Unit = {},
     pageSelectionInput: String = "all",
-    onPageSelectionChange: (String) -> Unit = {}
+    onPageSelectionChange: (String) -> Unit = {},
+    advancedEngineMode: Boolean = false,
+    onAdvancedEngineModeChange: (Boolean) -> Unit = {}
 ) {
     var expandedLang by remember { mutableStateOf(false) }
     var expandedEngine by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    var isAdvancedAddonInstalled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isAdvancedAddonInstalled = com.vitranslate.pdf.repository.AdvancedEngineManager.isAddonInstalled(context)
+    }
 
     val folderDisplayName = remember(customSaveDirectory) {
         if (customSaveDirectory.isNullOrBlank()) {
@@ -133,6 +140,93 @@ fun ControlsView(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = "Chế độ Render PDF",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(false) }
+            ) {
+                RadioButton(
+                    selected = !advancedEngineMode,
+                    onClick = { if (!isTranslating) onAdvancedEngineModeChange(false) },
+                    enabled = !isTranslating
+                )
+                Column {
+                    Text(
+                        text = "⚡ Lightweight Engine (Mặc định)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Nhanh, nhẹ, native Kotlin Android",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(true) }
+            ) {
+                RadioButton(
+                    selected = advancedEngineMode,
+                    onClick = { if (!isTranslating) onAdvancedEngineModeChange(true) },
+                    enabled = !isTranslating
+                )
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🚀 Advanced Engine (Desktop PyMuPDF)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        if (isAdvancedAddonInstalled) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "Ready",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        } else {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "Cần cài Addon",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Re-placement công thức PyMuPDF & layout chất lượng như bản Desktop",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

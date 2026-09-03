@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PDFTranslate"
 include(":app")
+include(":advanced-engine")
