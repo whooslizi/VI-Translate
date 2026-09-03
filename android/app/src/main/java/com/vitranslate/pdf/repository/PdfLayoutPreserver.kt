@@ -156,39 +156,31 @@ class PdfLayoutPreserver(private val context: Context) {
                                         untranslatedCount++
                                     }
 
-                                    var translatedRemainder = ""
                                     if (translationSuccess) {
                                         try {
-                                            translatedRemainder = FormulaPlaceholder.restoreFormulaPlaceholders(textToTranslate, translatedRaw)
+                                            val translatedRemainder = FormulaPlaceholder.restoreFormulaPlaceholders(textToTranslate, translatedRaw)
+                                            var restoredRemainder = FormulaPlaceholder.restoreFormulaVars(translatedRemainder, textCollector.formulaVars)
+                                            restoredRemainder = FormulaPlaceholder.stripInternalMarkers(restoredRemainder)
+
+                                            val translatedText = if (optionLabel != null) {
+                                                optionLabel + restoredRemainder
+                                            } else {
+                                                restoredRemainder
+                                            }
+                                            translations.add(ParagraphTranslation(paragraph, translatedText))
                                         } catch (_: Exception) {
-                                            // Tag restoration failed! Fall back to clean original text instead of corrupted tag string
-                                            translatedRemainder = FormulaPlaceholder.restoreFormulaVars(textToTranslate, textCollector.formulaVars)
+                                            // Tag restoration failed: Leave original PDF text intact
                                             untranslatedCount++
                                         }
                                     } else {
-                                        // Translation failed! Fall back to clean original text
-                                        translatedRemainder = FormulaPlaceholder.restoreFormulaVars(textToTranslate, textCollector.formulaVars)
+                                        // Translation failed: Leave original PDF text intact
+                                        untranslatedCount++
                                     }
-
-                                    // Restore formula variables ({vN}) back to original extracted formula text and scrub internal markers
-                                    var restoredRemainder = FormulaPlaceholder.restoreFormulaVars(translatedRemainder, textCollector.formulaVars)
-                                    restoredRemainder = FormulaPlaceholder.stripInternalMarkers(restoredRemainder)
-
-                                    // Re-attach option label prefix if it was present
-                                    val translatedText = if (optionLabel != null) {
-                                        optionLabel + restoredRemainder
-                                    } else {
-                                        restoredRemainder
-                                    }
-                                    translations.add(ParagraphTranslation(paragraph, translatedText))
                                 }
 
                                 onLog?.invoke("Trang $pageNum/$totalPages: ${textBlocks.size} dòng gộp thành ${paragraphs.size} đoạn. Đã dịch: ${translations.size}, Bỏ qua công thức: $skippedMathCount")
 
                                 if (translations.isNotEmpty()) {
-                                    // Strip original text from page streams so vector drawings & diagrams remain 100% pristine
-                                    val sourceTextRemoved = stripTextFromPage(document, page)
-
                                     PDPageContentStream(
                                         document,
                                         page,
@@ -202,14 +194,9 @@ class PdfLayoutPreserver(private val context: Context) {
                                             val cleanedText = stripTagsAndPlaceholders(translation.translated)
                                             val text = sanitizeForFont(cleanedText, font)
 
-                                            // Only when the source text is still on the page.
-                                            // Painting white over a block that has already been
-                                            // stripped hides nothing and destroys what was behind
-                                            // it: on a page of tinted table panels the app left a
-                                            // white patch under every line it wrote.
-                                            if (!sourceTextRemoved) {
-                                                for (line in paragraph.lines) coverSourceText(stream, line)
-                                            }
+                                            // Cover only the original text of translated paragraphs
+                                            for (line in paragraph.lines) coverSourceText(stream, line)
+
                                             if (text.isBlank()) continue
 
                                             // The next paragraph down the page bounds how far this
