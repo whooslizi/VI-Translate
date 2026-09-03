@@ -46,8 +46,9 @@ class UpdateCheckerTest {
 
     @Test
     fun testVersion036Comparison() {
-        assertTrue(UpdateChecker.isNewer("android-v0.3.6", "0.3.1"))
-        assertFalse(UpdateChecker.isNewer("android-v0.3.6", "0.3.6"))
-        assertFalse(UpdateChecker.isNewer("android-v0.3.1", "0.3.6"))
+        assertTrue(UpdateChecker.isSameVersion("android-v0.3.6", "0.3.6"))
+        assertFalse(UpdateChecker.isSameVersion("android-v0.3.6", "0.3.1"))
+        assertTrue(UpdateChecker.isDifferent("android-v0.4.0", "0.3.6"))
+        assertFalse(UpdateChecker.isDifferent("android-v0.3.6", "0.3.6"))
     }
 }

@@ -103,6 +103,16 @@ class UpdateChecker(private val currentVersion: String = BuildConfig.VERSION_NAM
             }
         }
 
+        fun isSameVersion(latest: String, current: String): Boolean {
+            val latestParts = versionParts(latest)
+            val currentParts = versionParts(current)
+            return latestParts == currentParts
+        }
+
+        fun isDifferent(latest: String, current: String): Boolean {
+            return !isSameVersion(latest, current)
+        }
+
         fun isNewer(latest: String, current: String): Boolean {
             val latestParts = versionParts(latest)
             val currentParts = versionParts(current)

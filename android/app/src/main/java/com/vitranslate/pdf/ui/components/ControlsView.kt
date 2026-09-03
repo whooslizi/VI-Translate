@@ -186,21 +186,55 @@ fun ControlsView(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "Trang cần dịch",
+                text = "Tùy chọn trang dịch",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(4.dp))
-            OutlinedTextField(
-                value = pageSelectionInput,
-                onValueChange = onPageSelectionChange,
-                enabled = !isTranslating,
-                singleLine = true,
-                placeholder = { Text("all hoặc 1-3, 7, 10-12", style = MaterialTheme.typography.bodyMedium) },
-                textStyle = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
+
+            val isAllPages = pageSelectionInput.equals("all", ignoreCase = true) || pageSelectionInput.isBlank()
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = isAllPages,
+                    onClick = { if (!isTranslating) onPageSelectionChange("all") },
+                    enabled = !isTranslating
+                )
+                Text(
+                    text = "Tất cả các trang",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clickable(enabled = !isTranslating) { onPageSelectionChange("all") }
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = !isAllPages,
+                    onClick = { if (!isTranslating && isAllPages) onPageSelectionChange("Từ 1 đến 10 (bỏ )") },
+                    enabled = !isTranslating
+                )
+                Text(
+                    text = "Chọn trang cụ thể (Từ trang... đến... bỏ trang...)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.clickable(enabled = !isTranslating) {
+                        if (isAllPages) onPageSelectionChange("Từ 1 đến 10 (bỏ )")
+                    }
+                )
+            }
+
+            if (!isAllPages) {
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = pageSelectionInput,
+                    onValueChange = onPageSelectionChange,
+                    enabled = !isTranslating,
+                    singleLine = true,
+                    placeholder = { Text("Ví dụ: Từ 1 đến 5 (bỏ 2,3) hoặc 1-3, 7", style = MaterialTheme.typography.bodyMedium) },
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
 
             Spacer(Modifier.height(12.dp))
 
