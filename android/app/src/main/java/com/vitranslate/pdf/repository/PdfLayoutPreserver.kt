@@ -95,7 +95,16 @@ class PdfLayoutPreserver(private val context: Context) {
                             val page = document.getPage(pageIndex)
                             val textCollector = PageTextCollector()
                             textCollector.extractPageText(document, page, pageIndex)
-                            val collapsedBlocks = collapseVerticalFractions(textCollector.blocks)
+
+                            var extractedBlocks = textCollector.blocks
+                            if (extractedBlocks.isEmpty()) {
+                                onLog?.invoke("Trang ${pageIndex + 1}: Không tìm thấy lớp văn bản, đang chạy OCR nhận diện ảnh…")
+                                extractedBlocks = kotlinx.coroutines.runBlocking {
+                                    OcrTextExtractor.extractOcrTextBlocks(document, page, pageIndex)
+                                }
+                            }
+
+                            val collapsedBlocks = collapseVerticalFractions(extractedBlocks)
                             val textBlocks = groupIntoLineRuns(collapsedBlocks)
 
                             if (textBlocks.isNotEmpty()) {

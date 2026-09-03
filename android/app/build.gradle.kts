@@ -34,7 +34,7 @@ val hasReleaseSigning = releaseStorePath != null &&
 
 // The one number to change for a release. Everything else follows from it: the
 // tag the workflow accepts, the name of the published APK, and versionCode.
-val appVersionName = "0.2.1"
+val appVersionName = "0.3.0"
 
 /**
  * Android refuses to install over a build whose versionCode is not lower, and
@@ -138,6 +138,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)
+
+    // Offline Native Android OCR (ML Kit) & Neural Layout Model Engine (ONNX Runtime)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
