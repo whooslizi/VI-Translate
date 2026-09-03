@@ -189,15 +189,74 @@ object AdvancedPdfTranslator {
             stream.addRect(rectX, rectY, rectW, rectH)
             stream.fill()
 
+            val sanitized = sanitizeForFont(translated, font)
+            if (sanitized.isBlank()) continue
+
             stream.beginText()
             stream.setFont(font, paragraph.fontSize)
             stream.setNonStrokingColor(0, 0, 0)
             stream.newLineAtOffset(paragraph.x0, pageHeight - paragraph.y0 - paragraph.fontSize)
-            stream.showText(translated)
+            stream.showText(sanitized)
             stream.endText()
         }
 
         stream.close()
+    }
+
+    private fun sanitizeForFont(text: String, font: PDFont): String {
+        val sb = StringBuilder(text.length)
+        for (char in text) {
+            if (char == '\n' || char == '\r' || char == '\t') {
+                sb.append(' ')
+                continue
+            }
+            if (char.code < 32 || char == '¯' || char == '‾' || char == '\u02C9') continue
+            try {
+                font.encode(char.toString())
+                sb.append(char)
+            } catch (_: Exception) {
+                when (char) {
+                    '⁰' -> sb.append('0')
+                    '¹' -> sb.append('1')
+                    '²' -> sb.append('2')
+                    '³' -> sb.append('3')
+                    '⁴' -> sb.append('4')
+                    '⁵' -> sb.append('5')
+                    '⁶' -> sb.append('6')
+                    '⁷' -> sb.append('7')
+                    '⁸' -> sb.append('8')
+                    '⁹' -> sb.append('9')
+                    '⁺' -> sb.append('+')
+                    '⁻' -> sb.append('-')
+                    '∞' -> sb.append("inf")
+                    '≤' -> sb.append("<=")
+                    '≥' -> sb.append(">=")
+                    '≠' -> sb.append("!=")
+                    '±' -> sb.append("+/-")
+                    '×' -> sb.append("*")
+                    '÷' -> sb.append("/")
+                    'π' -> sb.append("pi")
+                    'α' -> sb.append("alpha")
+                    'β' -> sb.append("beta")
+                    'γ' -> sb.append("gamma")
+                    'θ' -> sb.append("theta")
+                    '₀' -> sb.append('0')
+                    '₁' -> sb.append('1')
+                    '₂' -> sb.append('2')
+                    '₃' -> sb.append('3')
+                    '₄' -> sb.append('4')
+                    '₅' -> sb.append('5')
+                    '₆' -> sb.append('6')
+                    '₇' -> sb.append('7')
+                    '₈' -> sb.append('8')
+                    '₉' -> sb.append('9')
+                    '₊' -> sb.append('+')
+                    '₋' -> sb.append('-')
+                    else -> {}
+                }
+            }
+        }
+        return sb.toString()
     }
 }
 

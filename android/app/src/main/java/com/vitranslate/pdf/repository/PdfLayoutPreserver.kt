@@ -1328,7 +1328,7 @@ class PdfLayoutPreserver(private val context: Context) {
         }
     }
 
-    private fun sanitizeForFont(text: String, font: PDFont): String {
+    fun sanitizeForFont(text: String, font: PDFont): String {
         val sb = StringBuilder(text.length)
         for (char in text) {
             if (char == '\n' || char == '\r' || char == '\t') {
