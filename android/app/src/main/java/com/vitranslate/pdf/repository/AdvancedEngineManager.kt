@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import com.vitranslate.advancedengine.IAdvancedTranslationService
@@ -14,19 +13,34 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import kotlin.coroutines.resume
 
+enum class AdvancedEngineStatus {
+    READY,
+    NOT_INSTALLED,
+    INCOMPATIBLE,
+    UNAVAILABLE
+}
+
 object AdvancedEngineManager {
 
     const val ADVANCED_ENGINE_PACKAGE = "com.vitranslate.advancedengine"
     const val SERVICE_ACTION = "com.vitranslate.advancedengine.BIND_SERVICE"
 
-    fun isAddonInstalled(context: Context): Boolean {
+    fun getEngineStatus(context: Context): AdvancedEngineStatus {
         return try {
             val intent = Intent(SERVICE_ACTION).apply { setPackage(ADVANCED_ENGINE_PACKAGE) }
             val services = context.packageManager.queryIntentServices(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            services.isNotEmpty()
+            if (services.isEmpty()) {
+                AdvancedEngineStatus.NOT_INSTALLED
+            } else {
+                AdvancedEngineStatus.READY
+            }
         } catch (_: Exception) {
-            false
+            AdvancedEngineStatus.UNAVAILABLE
         }
+    }
+
+    fun isAddonInstalled(context: Context): Boolean {
+        return getEngineStatus(context) == AdvancedEngineStatus.READY
     }
 
     suspend fun translatePdf(
@@ -71,7 +85,7 @@ object AdvancedEngineManager {
                                 outputPfd.close()
                                 connection?.let { context.unbindService(it) }
                                 if (continuation.isActive) {
-                                    continuation.resume(Result.failure(Exception(errorMessage ?: "Unknown Advanced Engine Error")))
+                                    continuation.resume(Result.failure(Exception(errorMessage ?: "Chương trình dịch nâng cao gặp lỗi.")))
                                 }
                             }
                         }
@@ -93,13 +107,13 @@ object AdvancedEngineManager {
         val bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
 
         if (!bound) {
-            continuation.resume(Result.failure(Exception("Could not bind to Advanced Translation Engine. Please check if the addon is installed.")))
+            continuation.resume(Result.failure(Exception("Không thể kết nối đến Trình dịch Nâng cao. Vui lòng kiểm tra lại thiết lập.")))
         }
 
         continuation.invokeOnCancellation {
             try {
                 service?.cancel()
-                context.unbindService(connection)
+                connection?.let { context.unbindService(it) }
             } catch (_: Exception) {}
         }
     }

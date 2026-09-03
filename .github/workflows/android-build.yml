@@ -117,25 +117,32 @@ jobs:
       # Without a keystore AGP writes app-release-unsigned.apk instead, and the
       # name has to say so: an unsigned APK will not install, and one that
       # looked like a finished release would waste somebody's afternoon.
-      - name: Name the APK after the version
+      # Name and stage both APKs for release artifact upload
+      - name: Name the APKs after the version
         id: apk
         run: |
           version="${{ steps.version.outputs.version }}"
+          mkdir -p release_apks
           if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-            source="app/build/outputs/apk/release/app-release.apk"
-            name="PDFTranslate-android-${version}.apk"
+            cp app/build/outputs/apk/release/app-release.apk release_apks/PDFTranslate-android-${version}.apk
           else
-            source="app/build/outputs/apk/release/app-release-unsigned.apk"
-            name="PDFTranslate-android-${version}-unsigned.apk"
+            cp app/build/outputs/apk/release/app-release-unsigned.apk release_apks/PDFTranslate-android-${version}-unsigned.apk
           fi
-          test -f "$source"
-          cp "$source" "$name"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          if [ -f "advanced-engine/build/outputs/apk/release/advanced-engine-release.apk" ]; then
+            cp advanced-engine/build/outputs/apk/release/advanced-engine-release.apk release_apks/PDFTranslate-android-advanced-${version}.apk
+          elif [ -f "advanced-engine/build/outputs/apk/release/advanced-engine-release-unsigned.apk" ]; then
+            cp advanced-engine/build/outputs/apk/release/advanced-engine-release-unsigned.apk release_apks/PDFTranslate-android-advanced-${version}-unsigned.apk
+          elif [ -f "advanced-engine/build/outputs/apk/debug/advanced-engine-debug.apk" ]; then
+            cp advanced-engine/build/outputs/apk/debug/advanced-engine-debug.apk release_apks/PDFTranslate-android-advanced-${version}.apk
+          fi
+
+          echo "name=PDFTranslate-android-${version}" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.apk.outputs.name }}
-          path: android/${{ steps.apk.outputs.name }}
+          name: PDFTranslate-android-${{ steps.version.outputs.version }}-apks
+          path: android/release_apks/*
           if-no-files-found: error
 
       - name: Remove the keystore
@@ -164,13 +171,13 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.build.outputs.apk }}
-          path: android
+          name: PDFTranslate-android-${{ needs.build.outputs.version }}-apks
+          path: android/release_apks
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: Android ${{ needs.build.outputs.version }}
-          files: android/${{ needs.build.outputs.apk }}
+          files: android/release_apks/*
           fail_on_unmatched_files: true
 

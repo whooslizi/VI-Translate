@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -92,7 +93,7 @@ fun ControlsView(
                     modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        value = if (engineType == "openai") "🤖 OpenAI / Custom LLM" else "🌐 Google Translate (Miễn phí)",
+                        value = if (engineType == "openai") "OpenAI / Custom LLM" else "Google Translate (Miễn phí)",
                         onValueChange = {},
                         readOnly = true,
                         enabled = !isTranslating,
@@ -112,14 +113,14 @@ fun ControlsView(
                         onDismissRequest = { expandedEngine = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("🌐 Google Translate (Miễn phí)", style = MaterialTheme.typography.bodyMedium) },
+                            text = { Text("Google Translate (Miễn phí)", style = MaterialTheme.typography.bodyMedium) },
                             onClick = {
                                 onEngineTypeChange("google")
                                 expandedEngine = false
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("🤖 OpenAI / Custom LLM (GPT-4o, DeepSeek)", style = MaterialTheme.typography.bodyMedium) },
+                            text = { Text("OpenAI / Custom LLM (GPT-4o, DeepSeek)", style = MaterialTheme.typography.bodyMedium) },
                             onClick = {
                                 onEngineTypeChange("openai")
                                 expandedEngine = false
@@ -145,18 +146,22 @@ fun ControlsView(
 
             Spacer(Modifier.height(12.dp))
 
+            var showSetupDialog by remember { mutableStateOf(false) }
+
             Text(
-                text = "Chế độ Render PDF",
+                text = "Trình dịch PDF",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(false) }
+                    .padding(vertical = 4.dp)
             ) {
                 RadioButton(
                     selected = !advancedEngineMode,
@@ -165,23 +170,27 @@ fun ControlsView(
                 )
                 Column {
                     Text(
-                        text = "⚡ Lightweight Engine (Mặc định)",
+                        text = "Cơ bản",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "Nhanh, nhẹ, native Kotlin Android",
+                        text = "Nhanh, nhẹ, phù hợp với tài liệu thông thường",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
+            Spacer(Modifier.height(4.dp))
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(true) }
+                    .padding(vertical = 4.dp)
             ) {
                 RadioButton(
                     selected = advancedEngineMode,
@@ -191,7 +200,7 @@ fun ControlsView(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "🚀 Advanced Engine (Desktop PyMuPDF)",
+                            text = "Nâng cao",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -199,35 +208,63 @@ fun ControlsView(
                         if (isAdvancedAddonInstalled) {
                             Surface(
                                 color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text(
-                                    text = "Ready",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "Đã sẵn sàng",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                             }
                         } else {
                             Surface(
                                 color = MaterialTheme.colorScheme.errorContainer,
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text(
-                                    text = "Cần cài Addon",
+                                    text = "Chưa cài đặt",
                                     style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
                     }
                     Text(
-                        text = "Re-placement công thức PyMuPDF & layout chất lượng như bản Desktop",
+                        text = "Chất lượng bố cục, công thức và OCR cao hơn",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            if (advancedEngineMode && !isAdvancedAddonInstalled) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showSetupDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Thiết lập trình dịch nâng cao", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            if (showSetupDialog) {
+                AdvancedEngineSetupDialog(onDismiss = { showSetupDialog = false })
             }
 
             Spacer(Modifier.height(12.dp))

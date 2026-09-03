@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Image
@@ -116,6 +116,60 @@ fun AboutDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Phông chữ ứng dụng",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    var useDeviceFont by remember { androidx.compose.runtime.mutableStateOf(com.vitranslate.pdf.repository.AppFontPreference.isUseDeviceFont(context)) }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                useDeviceFont = false
+                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, false)
+                            }
+                    ) {
+                        RadioButton(
+                            selected = !useDeviceFont,
+                            onClick = {
+                                useDeviceFont = false
+                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, false)
+                            }
+                        )
+                        Text(
+                            text = "Phông chữ của ứng dụng",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                useDeviceFont = true
+                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, true)
+                            }
+                    ) {
+                        RadioButton(
+                            selected = useDeviceFont,
+                            onClick = {
+                                useDeviceFont = true
+                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, true)
+                            }
+                        )
+                        Text(
+                            text = "Sử dụng phông chữ của thiết bị",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
