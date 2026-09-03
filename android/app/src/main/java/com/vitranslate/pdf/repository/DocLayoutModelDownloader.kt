@@ -10,7 +10,11 @@ import java.io.IOException
 object DocLayoutModelDownloader {
 
     private const val MODEL_FILENAME = "doclayout.onnx"
-    private const val DEFAULT_MODEL_URL = "https://github.com/whooslizi/VI-Translate/releases/download/v1.0.0/doclayout.onnx"
+    private val MODEL_URLS = listOf(
+        "https://github.com/whooslizi/VI-Translate/releases/download/android-v0.3.0/doclayout.onnx",
+        "https://huggingface.co/breezedeus/pix2text-layout/resolve/main/doclayout.onnx",
+        "https://huggingface.co/layoutlm/doclayout/resolve/main/doclayout.onnx"
+    )
 
     fun getModelFile(context: Context): File {
         return File(context.filesDir, MODEL_FILENAME)
@@ -23,7 +27,7 @@ object DocLayoutModelDownloader {
 
     suspend fun downloadModel(
         context: Context,
-        modelUrl: String = DEFAULT_MODEL_URL,
+        modelUrl: String? = null,
         onProgress: (percent: Int) -> Unit
     ): File? {
         val targetFile = getModelFile(context)
@@ -32,39 +36,45 @@ object DocLayoutModelDownloader {
             return targetFile
         }
 
-        val client = OkHttpClient()
-        val request = Request.Builder().url(modelUrl).build()
+        val urlsToTry = if (!modelUrl.isNullOrBlank()) listOf(modelUrl) + MODEL_URLS else MODEL_URLS
+        val client = OkHttpClient.Builder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
 
-        try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
+        for (url in urlsToTry) {
+            val request = Request.Builder().url(url).build()
+            try {
+                val response = client.newCall(request).execute()
+                if (!response.isSuccessful) continue
 
-            val body = response.body ?: return null
-            val contentLength = body.contentLength()
-            val tempFile = File(context.filesDir, "$MODEL_FILENAME.tmp")
+                val body = response.body ?: continue
+                val contentLength = body.contentLength()
+                val tempFile = File(context.filesDir, "$MODEL_FILENAME.tmp")
 
-            body.byteStream().use { inputStream ->
-                FileOutputStream(tempFile).use { outputStream ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    var totalRead = 0L
+                body.byteStream().use { inputStream ->
+                    FileOutputStream(tempFile).use { outputStream ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        var totalRead = 0L
 
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        totalRead += bytesRead
-                        if (contentLength > 0) {
-                            val percent = ((totalRead * 100) / contentLength).toInt()
-                            onProgress(percent)
+                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                            outputStream.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+                            if (contentLength > 0) {
+                                val percent = ((totalRead * 100) / contentLength).toInt()
+                                onProgress(percent)
+                            }
                         }
                     }
                 }
-            }
 
-            if (tempFile.renameTo(targetFile)) {
-                return targetFile
+                if (tempFile.renameTo(targetFile)) {
+                    return targetFile
+                }
+            } catch (_: IOException) {
+                // Try next URL
             }
-        } catch (_: IOException) {
-            // Download failed
         }
         return null
     }
