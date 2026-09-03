@@ -34,7 +34,7 @@ val hasReleaseSigning = releaseStorePath != null &&
 
 // The one number to change for a release. Everything else follows from it: the
 // tag the workflow accepts, the name of the published APK, and versionCode.
-val appVersionName = "0.3.1"
+val appVersionName = "0.3.6"
 
 /**
  * Android refuses to install over a build whose versionCode is not lower, and

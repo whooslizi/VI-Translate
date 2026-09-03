@@ -37,6 +37,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val llmApiKey = TranslationController.llmApiKey
     val llmBaseUrl = TranslationController.llmBaseUrl
     val llmModelName = TranslationController.llmModelName
+    val pageSelectionInput = TranslationController.pageSelectionInput
+
+    fun setPageSelectionInput(input: String) = TranslationController.setPageSelectionInput(input)
 
     fun setEngineType(type: String) = TranslationController.setEngineType(type)
 

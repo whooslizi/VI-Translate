@@ -187,6 +187,7 @@ fun MainScreen(
     val llmApiKey by viewModel.llmApiKey.collectAsState()
     val llmBaseUrl by viewModel.llmBaseUrl.collectAsState()
     val llmModelName by viewModel.llmModelName.collectAsState()
+    val pageSelectionInput by viewModel.pageSelectionInput.collectAsState()
 
     var showLogDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -207,6 +208,8 @@ fun MainScreen(
     if (showAboutDialog) {
         AboutDialog(
             appVersion = BuildConfig.VERSION_NAME,
+            updateInfo = updateInfo,
+            onCheckUpdate = { viewModel.downloadUpdate() },
             onDismiss = { showAboutDialog = false }
         )
     }
@@ -260,7 +263,9 @@ fun MainScreen(
             onCancelTranslation = { viewModel.cancelTranslation() },
             engineType = engineType,
             onEngineTypeChange = { viewModel.setEngineType(it) },
-            onOpenLlmSettings = { showLlmDialog = true }
+            onOpenLlmSettings = { showLlmDialog = true },
+            pageSelectionInput = pageSelectionInput,
+            onPageSelectionChange = { viewModel.setPageSelectionInput(it) }
         )
 
         QueueView(

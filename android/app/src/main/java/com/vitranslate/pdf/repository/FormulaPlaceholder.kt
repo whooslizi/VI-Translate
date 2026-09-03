@@ -126,4 +126,11 @@ object FormulaPlaceholder {
         matcher.appendTail(sb)
         return sb.toString()
     }
+
+    /**
+     * Strips any leftover `{vN}` markers from text to ensure internal tags never leak into drawn PDF output.
+     */
+    fun stripInternalMarkers(text: String): String {
+        return INTERNAL_PLACEHOLDER_PATTERN.matcher(text).replaceAll("")
+    }
 }

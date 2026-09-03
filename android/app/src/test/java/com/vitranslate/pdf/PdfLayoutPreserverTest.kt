@@ -28,6 +28,14 @@ class PdfLayoutPreserverTest {
     }
 
     @Test
+    fun testStripInternalMarkersNeverLeaksPlaceholders() {
+        val inputWithMarkers = "Result is {v0} and {v71} and {v81}"
+        val stripped = FormulaPlaceholder.stripInternalMarkers(inputWithMarkers)
+        assertFalse(stripped.contains("{v"))
+        assertEquals("Result is  and  and ", stripped)
+    }
+
+    @Test
     fun testCollapseVerticalFractions_withBar() {
         val top = PdfLayoutPreserver.TextBlock(
             text = "ax² + bx + c",

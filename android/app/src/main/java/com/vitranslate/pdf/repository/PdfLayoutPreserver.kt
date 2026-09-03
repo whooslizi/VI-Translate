@@ -63,6 +63,7 @@ class PdfLayoutPreserver(private val context: Context) {
         outputDirUriOrPath: String?,
         targetLang: String,
         overwrite: Boolean,
+        pageSelectionInput: String = "all",
         onProgress: (done: Int, total: Int) -> Unit,
         onLog: ((String) -> Unit)? = null,
         isCancelled: () -> Boolean = { false },
@@ -86,19 +87,33 @@ class PdfLayoutPreserver(private val context: Context) {
                 context.contentResolver.openInputStream(inputUri)?.use { inputStream ->
                     PDDocument.load(inputStream).use { document ->
                         val totalPages = document.numberOfPages
-                        onProgress(0, totalPages)
-                        onLog?.invoke("Mở file PDF thành công. Tổng số trang: $totalPages")
+                        val selectedPages = PageSelectionParser.parsePageSelection(pageSelectionInput, totalPages)
+                        val selectedSet = selectedPages.toSet()
+
+                        onProgress(0, selectedPages.size)
+                        onLog?.invoke("Mở file PDF thành công. Tổng số trang: $totalPages. Số trang chọn dịch: ${selectedPages.size}")
                         val font: PDFont = loadBundledFont(document)
 
                         for (pageIndex in 0 until totalPages) {
                             if (isCancelled()) throw TranslationCancelledException()
+                            val pageNum = pageIndex + 1
+
+                            // Unselected pages remain 100% untouched and preserved in the final output PDF
+                            if (pageNum !in selectedSet) {
+                                onLog?.invoke("Trang $pageNum/$totalPages: Bỏ qua (không nằm trong danh sách chọn), giữ nguyên trang gốc.")
+                                continue
+                            }
+
+                            val currentStepIndex = selectedPages.indexOf(pageNum) + 1
+                            onProgress(currentStepIndex, selectedPages.size)
+
                             val page = document.getPage(pageIndex)
                             val textCollector = PageTextCollector()
                             textCollector.extractPageText(document, page, pageIndex)
 
                             var extractedBlocks = textCollector.blocks
                             if (extractedBlocks.isEmpty()) {
-                                onLog?.invoke("Trang ${pageIndex + 1}: Không tìm thấy lớp văn bản, đang chạy OCR nhận diện ảnh…")
+                                onLog?.invoke("Trang $pageNum: Không tìm thấy lớp văn bản, đang chạy OCR nhận diện ảnh…")
                                 extractedBlocks = kotlinx.coroutines.runBlocking {
                                     OcrTextExtractor.extractOcrTextBlocks(document, page, pageIndex)
                                 }
@@ -140,19 +155,24 @@ class PdfLayoutPreserver(private val context: Context) {
                                     } catch (_: Exception) {
                                         untranslatedCount++
                                     }
-                                    var translatedRemainder = translatedRaw
+
+                                    var translatedRemainder = ""
                                     if (translationSuccess) {
                                         try {
                                             translatedRemainder = FormulaPlaceholder.restoreFormulaPlaceholders(textToTranslate, translatedRaw)
                                         } catch (_: Exception) {
-                                            translatedRemainder = FormulaPlaceholder.removeControlCharacters(translatedRaw)
-                                                .replace(STRAY_FORMULA_TAG, "")
-                                                .replace(STRAY_STYLE_TAG, "")
+                                            // Tag restoration failed! Fall back to clean original text instead of corrupted tag string
+                                            translatedRemainder = FormulaPlaceholder.restoreFormulaVars(textToTranslate, textCollector.formulaVars)
+                                            untranslatedCount++
                                         }
+                                    } else {
+                                        // Translation failed! Fall back to clean original text
+                                        translatedRemainder = FormulaPlaceholder.restoreFormulaVars(textToTranslate, textCollector.formulaVars)
                                     }
 
-                                    // Restore formula variables ({vN}) back to original extracted formula text
-                                    val restoredRemainder = FormulaPlaceholder.restoreFormulaVars(translatedRemainder, textCollector.formulaVars)
+                                    // Restore formula variables ({vN}) back to original extracted formula text and scrub internal markers
+                                    var restoredRemainder = FormulaPlaceholder.restoreFormulaVars(translatedRemainder, textCollector.formulaVars)
+                                    restoredRemainder = FormulaPlaceholder.stripInternalMarkers(restoredRemainder)
 
                                     // Re-attach option label prefix if it was present
                                     val translatedText = if (optionLabel != null) {
@@ -163,7 +183,7 @@ class PdfLayoutPreserver(private val context: Context) {
                                     translations.add(ParagraphTranslation(paragraph, translatedText))
                                 }
 
-                                onLog?.invoke("Trang ${pageIndex + 1}/$totalPages: ${textBlocks.size} dòng gộp thành ${paragraphs.size} đoạn. Đã dịch: ${translations.size}, Bỏ qua công thức: $skippedMathCount")
+                                onLog?.invoke("Trang $pageNum/$totalPages: ${textBlocks.size} dòng gộp thành ${paragraphs.size} đoạn. Đã dịch: ${translations.size}, Bỏ qua công thức: $skippedMathCount")
 
                                 if (translations.isNotEmpty()) {
                                     // Strip original text from page streams so vector drawings & diagrams remain 100% pristine
@@ -619,10 +639,12 @@ class PdfLayoutPreserver(private val context: Context) {
          * published reading "µR.<b 9002" -- markup in a delivered document.
          */
         fun stripTagsAndPlaceholders(text: String): String {
-            return text
-                .replace(STRAY_FORMULA_TAG, "")
-                .replace(STRAY_STYLE_TAG, "")
-                .replace(STRAY_CONVERTER_MARKER, "")
+            return FormulaPlaceholder.stripInternalMarkers(
+                text
+                    .replace(STRAY_FORMULA_TAG, "")
+                    .replace(STRAY_STYLE_TAG, "")
+                    .replace(STRAY_CONVERTER_MARKER, "")
+            )
         }
 
         /** What a column was set to, and whether it is prose at all. */
@@ -1394,7 +1416,9 @@ class PdfLayoutPreserver(private val context: Context) {
                     '≈' -> sb.append(" ~~ ")
                     '⊗' -> sb.append("(x)")
                     '⊕' -> sb.append("(+)")
-                    '√' -> {}  // radical glyph — radicand already extracted separately
+                    '√' -> sb.append('√')
+                    '∛' -> sb.append("cbrt")
+                    '∜' -> sb.append("qdrt")
                     '∇' -> sb.append("nabla")
                     '∂' -> sb.append('d')
                     '∑' -> sb.append("sum")

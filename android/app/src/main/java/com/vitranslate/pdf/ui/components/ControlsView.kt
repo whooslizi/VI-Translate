@@ -33,7 +33,9 @@ fun ControlsView(
     onCancelTranslation: () -> Unit,
     engineType: String = "google",
     onEngineTypeChange: (String) -> Unit = {},
-    onOpenLlmSettings: () -> Unit = {}
+    onOpenLlmSettings: () -> Unit = {},
+    pageSelectionInput: String = "all",
+    onPageSelectionChange: (String) -> Unit = {}
 ) {
     var expandedLang by remember { mutableStateOf(false) }
     var expandedEngine by remember { mutableStateOf(false) }
@@ -180,6 +182,25 @@ fun ControlsView(
                     }
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                text = "Trang cần dịch",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            OutlinedTextField(
+                value = pageSelectionInput,
+                onValueChange = onPageSelectionChange,
+                enabled = !isTranslating,
+                singleLine = true,
+                placeholder = { Text("all hoặc 1-3, 7, 10-12", style = MaterialTheme.typography.bodyMedium) },
+                textStyle = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
 
             Spacer(Modifier.height(12.dp))
 

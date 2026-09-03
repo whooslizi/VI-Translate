@@ -26,9 +26,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.vitranslate.pdf.R
 
+import com.vitranslate.pdf.model.UpdateInfo
+
 @Composable
 fun AboutDialog(
     appVersion: String,
+    updateInfo: UpdateInfo? = null,
+    onCheckUpdate: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -148,6 +152,51 @@ fun AboutDialog(
                         url = babelDocUrl,
                         onOpen = { openUrl(babelDocUrl) }
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Update Status Section
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Nguồn cập nhật chính thức:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = if (updateInfo?.isNewerAvailable == true)
+                                        "Có bản mới: ${updateInfo.latestVersion}"
+                                    else
+                                        "Bạn đang dùng bản mới nhất (v$appVersion)",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (updateInfo?.isNewerAvailable == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            if (onCheckUpdate != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        onCheckUpdate()
+                                        openUrl(officialSourceUrl + "/releases")
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Kiểm tra cập nhật", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))

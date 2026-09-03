@@ -93,6 +93,17 @@ object TranslationController {
     private val _engineType = MutableStateFlow("google")
     val engineType: StateFlow<String> = _engineType.asStateFlow()
 
+    private const val KEY_PAGE_SELECTION = "page_selection_input"
+
+    private val _pageSelectionInput = MutableStateFlow("all")
+    val pageSelectionInput: StateFlow<String> = _pageSelectionInput.asStateFlow()
+
+    fun setPageSelectionInput(input: String) {
+        _pageSelectionInput.value = input
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()?.putString(KEY_PAGE_SELECTION, input)?.apply()
+    }
+
     private val _llmApiKey = MutableStateFlow("")
     val llmApiKey: StateFlow<String> = _llmApiKey.asStateFlow()
 
@@ -133,6 +144,7 @@ object TranslationController {
         _llmApiKey.value = prefs.getString(KEY_LLM_API_KEY, "") ?: ""
         _llmBaseUrl.value = prefs.getString(KEY_LLM_BASE_URL, "https://api.openai.com/v1") ?: "https://api.openai.com/v1"
         _llmModelName.value = prefs.getString(KEY_LLM_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
+        _pageSelectionInput.value = prefs.getString(KEY_PAGE_SELECTION, "all") ?: "all"
         scope.launch {
             val info = UpdateChecker().checkForUpdate()
             if (info != null && info.isNewerAvailable) {
@@ -302,6 +314,7 @@ object TranslationController {
                         outputDirUriOrPath = targetOutputDir,
                         targetLang = _selectedLanguage.value.code,
                         overwrite = _overwrite.value,
+                        pageSelectionInput = _pageSelectionInput.value,
                         onProgress = { donePages, totalPages ->
                             _isIndeterminate.value = false
                             val fileFraction =
