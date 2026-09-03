@@ -58,6 +58,21 @@ class PdfLayoutPreserver(private val context: Context) {
         }
     }
 
+    fun saveResultToOutput(
+        tempFile: File,
+        outputDirUriOrPath: String?,
+        outputFileName: String,
+        overwrite: Boolean
+    ): String {
+        val (outputStream, resultPath) = prepareOutputStream(outputDirUriOrPath, outputFileName, overwrite)
+        outputStream.use { outStream ->
+            tempFile.inputStream().use { inStream ->
+                inStream.copyTo(outStream)
+            }
+        }
+        return resultPath
+    }
+
     fun translatePdf(
         inputUri: Uri,
         outputDirUriOrPath: String?,
@@ -1212,7 +1227,7 @@ class PdfLayoutPreserver(private val context: Context) {
         }
     }
 
-    private fun loadBundledFont(document: PDDocument): PDFont {
+    fun loadBundledFont(document: PDDocument): PDFont {
         val candidatePaths = listOf(
             "fonts/NotoSerif-Regular.ttf",
             "fonts/NotoSans-Regular.ttf"

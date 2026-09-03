@@ -1,6 +1,7 @@
 package com.vitranslate.pdf.repository
 
 import android.content.Context
+import android.net.Uri
 import java.io.File
 
 enum class AdvancedEngineStatus {
@@ -13,7 +14,6 @@ enum class AdvancedEngineStatus {
 object AdvancedEngineManager {
 
     fun getEngineStatus(context: Context): AdvancedEngineStatus {
-        // Built directly into the single unified APK
         return AdvancedEngineStatus.READY
     }
 
@@ -21,20 +21,27 @@ object AdvancedEngineManager {
         return true
     }
 
-    suspend fun translatePdf(
+    fun translatePdfAdvanced(
         context: Context,
-        inputFile: File,
+        inputUri: Uri,
         outputFile: File,
         targetLang: String,
-        engineType: String,
-        onProgress: (Int, Int, String) -> Unit
+        pageSelectionInput: String,
+        customEngine: TranslateEngine?,
+        onProgress: (Int, Int, String) -> Unit,
+        onLog: (String) -> Unit,
+        isCancelled: () -> Boolean
     ): Result<String> {
-        return try {
-            onProgress(1, 1, "Đang xử lý bằng Trình dịch Nâng cao...")
-            inputFile.copyTo(outputFile, overwrite = true)
-            Result.success(outputFile.absolutePath)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return AdvancedPdfTranslator.translatePdfAdvanced(
+            context = context,
+            inputUri = inputUri,
+            outputFile = outputFile,
+            targetLang = targetLang,
+            pageSelectionInput = pageSelectionInput,
+            customEngine = customEngine,
+            onProgress = onProgress,
+            onLog = onLog,
+            isCancelled = isCancelled
+        )
     }
 }

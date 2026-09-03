@@ -320,29 +320,62 @@ object TranslationController {
                         )
                     } else null
 
-                    val result = engine.translatePdf(
-                        inputUri = item.uri,
-                        outputDirUriOrPath = targetOutputDir,
-                        targetLang = _selectedLanguage.value.code,
-                        overwrite = _overwrite.value,
-                        pageSelectionInput = _pageSelectionInput.value,
-                        onProgress = { donePages, totalPages ->
-                            _isIndeterminate.value = false
-                            val fileFraction =
-                                if (totalPages > 0) donePages.toFloat() / totalPages else 0f
-                            _progress.value = (completedFiles + fileFraction) / totalFiles
-                            _statusText.value =
-                                "Đang dịch ${item.name}   trang $donePages/$totalPages"
-                            updateItemStatus(
-                                item.id,
-                                TranslationStatus.RUNNING,
-                                "trang $donePages/$totalPages"
-                            )
-                        },
-                        onLog = { appendLog(it) },
-                        isCancelled = { cancelRequested },
-                        customEngine = customEngine
-                    )
+                    val result = if (_advancedEngineMode.value) {
+                        val baseName = if (item.name.endsWith(".pdf", ignoreCase = true)) {
+                            item.name.substring(0, item.name.length - 4)
+                        } else item.name
+                        val outputFileName = "$baseName-${_selectedLanguage.value.code}.pdf"
+                        val tempOutFile = File(requireContext().cacheDir, outputFileName)
+
+                        val advResult = AdvancedEngineManager.translatePdfAdvanced(
+                            context = requireContext(),
+                            inputUri = item.uri,
+                            outputFile = tempOutFile,
+                            targetLang = _selectedLanguage.value.code,
+                            pageSelectionInput = _pageSelectionInput.value,
+                            customEngine = customEngine,
+                            onProgress = { donePages, totalPages, msg ->
+                                _isIndeterminate.value = false
+                                val fileFraction = if (totalPages > 0) donePages.toFloat() / totalPages else 0f
+                                _progress.value = (completedFiles + fileFraction) / totalFiles
+                                _statusText.value = "Đang dịch ${item.name} (Nâng cao)   trang $donePages/$totalPages"
+                                updateItemStatus(item.id, TranslationStatus.RUNNING, "trang $donePages/$totalPages")
+                            },
+                            onLog = { appendLog(it) },
+                            isCancelled = { cancelRequested }
+                        )
+
+                        if (advResult.isSuccess) {
+                            val finalPath = engine.saveResultToOutput(tempOutFile, targetOutputDir, outputFileName, _overwrite.value)
+                            TranslationResult(finalPath, 0)
+                        } else {
+                            throw advResult.exceptionOrNull() ?: Exception("Dịch Nâng cao thất bại")
+                        }
+                    } else {
+                        engine.translatePdf(
+                            inputUri = item.uri,
+                            outputDirUriOrPath = targetOutputDir,
+                            targetLang = _selectedLanguage.value.code,
+                            overwrite = _overwrite.value,
+                            pageSelectionInput = _pageSelectionInput.value,
+                            onProgress = { donePages, totalPages ->
+                                _isIndeterminate.value = false
+                                val fileFraction =
+                                    if (totalPages > 0) donePages.toFloat() / totalPages else 0f
+                                _progress.value = (completedFiles + fileFraction) / totalFiles
+                                _statusText.value =
+                                    "Đang dịch ${item.name}   trang $donePages/$totalPages"
+                                updateItemStatus(
+                                    item.id,
+                                    TranslationStatus.RUNNING,
+                                    "trang $donePages/$totalPages"
+                                )
+                            },
+                            onLog = { appendLog(it) },
+                            isCancelled = { cancelRequested },
+                            customEngine = customEngine
+                        )
+                    }
 
                     val partial = result.untranslatedCount > 0
                     updateItemStatus(
