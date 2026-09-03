@@ -9,12 +9,15 @@ class PdfLayoutPreserverTest {
 
     @Test
     fun testFormulaPlaceholderEncodingAndRestoration() {
-        val original = "Let {v0} be a function where x^2 + 1 = 0."
+        val original = "Let {v0} be a function where {v1} = 0."
         val encoded = FormulaPlaceholder.encodeFormulaPlaceholders(original)
-        assertEquals("Let <b0></b0> be a function where <b9000>x^2</b9000> + 1 = 0.", encoded)
+        assertEquals("Let <b0></b0> be a function where <b1></b1> = 0.", encoded)
 
         val restored = FormulaPlaceholder.restoreFormulaPlaceholders(original, encoded)
         assertEquals(original, restored)
+
+        val restoredVars = FormulaPlaceholder.restoreFormulaVars(restored, listOf("f(x)", "x² + 1"))
+        assertEquals("Let f(x) be a function where x² + 1 = 0.", restoredVars)
     }
 
     @Test
@@ -101,11 +104,14 @@ class PdfLayoutPreserverTest {
         assertTrue(PdfLayoutPreserver.isPureMathOrFormula("(ax² + bx + c) / (x - d)"))
         assertTrue(PdfLayoutPreserver.isPureMathOrFormula("fnc / fnt = 2^(n/12)"))
         assertTrue(PdfLayoutPreserver.isPureMathOrFormula("32 / 3"))
+        assertTrue(PdfLayoutPreserver.isPureMathOrFormula("2√2"))
 
         // Vietnamese prose containing math — should NOT be classified as formula
         assertFalse(PdfLayoutPreserver.isPureMathOrFormula("Cho hàm số y = (ax² + bx + c) / (x - d) có đồ thị như hình vẽ"))
         assertFalse(PdfLayoutPreserver.isPureMathOrFormula("Họ nguyên hàm của hàm số f(x) = 1/(1-x) + sin(2x) là"))
         assertFalse(PdfLayoutPreserver.isPureMathOrFormula("Giá trị lớn nhất của hàm số y = x + 4 - x² bằng"))
+        assertFalse(PdfLayoutPreserver.isPureMathOrFormula("Cho khối chóp S.ABC có đáy ABC là tam giác vuông cân tại B, AC = 2a"))
+        assertFalse(PdfLayoutPreserver.isPureMathOrFormula("Diện tích hình phẳng giới hạn bởi hai đường y = x² − 4 và y = 2x − 4 bằng"))
 
         // English prose containing math — should NOT be classified as formula
         assertFalse(PdfLayoutPreserver.isPureMathOrFormula("The sum of the solutions of the equation is"))

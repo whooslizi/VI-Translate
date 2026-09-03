@@ -126,7 +126,8 @@ class PdfLayoutPreserver(private val context: Context) {
                                     // Skip translating standalone math formulas and numeric choices, but preserve them in translations list
                                     if (textToTranslate.isBlank() || isPureMathOrFormula(textToTranslate)) {
                                         skippedMathCount++
-                                        translations.add(ParagraphTranslation(paragraph, originalText))
+                                        val restoredOriginal = FormulaPlaceholder.restoreFormulaVars(originalText, textCollector.formulaVars)
+                                        translations.add(ParagraphTranslation(paragraph, restoredOriginal))
                                         continue
                                     }
 
@@ -150,11 +151,14 @@ class PdfLayoutPreserver(private val context: Context) {
                                         }
                                     }
 
+                                    // Restore formula variables ({vN}) back to original extracted formula text
+                                    val restoredRemainder = FormulaPlaceholder.restoreFormulaVars(translatedRemainder, textCollector.formulaVars)
+
                                     // Re-attach option label prefix if it was present
                                     val translatedText = if (optionLabel != null) {
-                                        optionLabel + translatedRemainder
+                                        optionLabel + restoredRemainder
                                     } else {
-                                        translatedRemainder
+                                        restoredRemainder
                                     }
                                     translations.add(ParagraphTranslation(paragraph, translatedText))
                                 }
@@ -426,6 +430,31 @@ class PdfLayoutPreserver(private val context: Context) {
     }
 
     companion object {
+        /**
+         * Port of FORMULA_FONT_PATTERN from rules.py:11.
+         * Matches font names that indicate formula, code, or mathematical text.
+         * Characters in these fonts are preserved as-is, never sent to translation.
+         */
+        private val FORMULA_FONT_PATTERN = Pattern.compile(
+            "(CM[^R]|MS.M|XY|MT|BL|RM|EU|LA|RS|LINE|LCIRCLE|TeX-|rsfs|txsy|wasy|" +
+                "stmary|.*Mono|.*Code|.*Sym|.*Math|.*Typewriter|Cousine|Consolas|Menlo|" +
+                "Monaco|Inconsolata|Source.?Code|Fira.?Code|DejaVu.?Sans.?Mono|" +
+                "Liberation.?Mono|Courier)",
+            Pattern.CASE_INSENSITIVE
+        )
+
+        /**
+         * Port of MINIMUM_PROSE_RUN from converter.py:251.
+         * A formula run shorter than this is never rescued as prose.
+         */
+        private const val MINIMUM_PROSE_RUN = 12
+
+        /**
+         * Port of the prose word test from converter.py:269 and rules.py:21.
+         * Three or more consecutive lowercase ASCII letters is a prose word.
+         */
+        private val PROSE_WORD_PATTERN = Regex("[a-z]{3,}")
+
         // \b is defined against ASCII word characters, so in "εmax" there is no
         // boundary before "max" and the subscript went unrecognised: the block
         // looked like the prose word "εmax", was sent to the translator, and
@@ -550,11 +579,6 @@ class PdfLayoutPreserver(private val context: Context) {
                 return true
             }
 
-            // Exponent / Subscript runs (e.g. "a_3^6", "x^2", "(x-1)^2", "P(X=0)")
-            if (trimmed.matches(Regex(".*[0-9A-Za-z]+[\\^\\_][0-9A-Za-z\\-\\+\\{\\}]+.*"))) {
-                return true
-            }
-
             // A single short token carrying a character that prose never uses is a symbol
             if (trimmed.length <= SYMBOL_TOKEN_MAX_LENGTH &&
                 trimmed.none { it.isWhitespace() } &&
@@ -568,6 +592,10 @@ class PdfLayoutPreserver(private val context: Context) {
 
             val hasLongProseWord = letterRuns.any { it.length > 2 }
             if (!hasLongProseWord) {
+                // Short standalone exponent / subscript runs (e.g. "a_3^6", "x^2", "(x-1)^2", "P(X=0)")
+                if (trimmed.matches(Regex(".*[0-9A-Za-z]+[\\^\\_][0-9A-Za-z\\-\\+\\{\\}]+.*"))) {
+                    return true
+                }
                 val withoutVariableLetters = withoutFunctionWords.replace(Regex("[\\p{L}]"), "")
                 if (MATH_SYMBOL_ONLY_PATTERN.matcher(withoutVariableLetters).matches()) {
                     return true
@@ -575,7 +603,7 @@ class PdfLayoutPreserver(private val context: Context) {
             }
 
             val hasMathOperators = Regex("[=/^√≤≥≠±∈∉⊂⊃∩∪+\\-*:]").containsMatchIn(trimmed)
-            if (hasMathOperators && trimmed.length <= 80 && letterRuns.count { it.length > 2 } <= 2) {
+            if (hasMathOperators && trimmed.length <= 80 && letterRuns.count { it.length > 2 } <= 1) {
                 return true
             }
 
@@ -1489,6 +1517,15 @@ class PdfLayoutPreserver(private val context: Context) {
         val blocks = mutableListOf<TextBlock>()
         var cropBox: PDRectangle = PDRectangle(0f, 0f, 612f, 792f)
 
+        /**
+         * Formula runs detected during extraction. Each entry maps an index to
+         * the original text of the formula characters. The text emitted for
+         * each detected formula run is the placeholder `{vN}`, which the
+         * translation pipeline preserves through the round-trip and restores
+         * before the translated text is drawn.
+         */
+        val formulaVars = mutableListOf<String>()
+
         init {
             sortByPosition = true
         }
@@ -1498,6 +1535,7 @@ class PdfLayoutPreserver(private val context: Context) {
             startPage = pageIndex + 1
             endPage = pageIndex + 1
             blocks.clear()
+            formulaVars.clear()
             writeText(document, NullWriter())
         }
 
@@ -1519,6 +1557,76 @@ class PdfLayoutPreserver(private val context: Context) {
             } catch (_: Exception) {
                 null
             }
+        }
+
+        /**
+         * Port of the Windows `vflag()` function from converter.py:746.
+         *
+         * Determines whether a single character should be preserved as a
+         * formula glyph rather than sent to the translation engine. This is
+         * the same logic the desktop engine uses:
+         *
+         * 1. Characters in **formula fonts** (CMR, MT, Math, Symbol, etc.)
+         * 2. Characters whose **Unicode category** is mathematical
+         *    (Sm, Lm, Mn, Sk) or in the **Greek range** (U+0370–U+03FF)
+         * 3. Characters the output font **cannot render** (handled separately
+         *    during drawing, not here)
+         *
+         * This does NOT include the size check (superscript/subscript
+         * detection) — that is applied in writeString() where the positional
+         * context is available.
+         */
+        private fun isFormulaChar(ch: String, fontName: String?): Boolean {
+            if (ch.isEmpty()) return false
+            val c = ch[0]
+            if (c == ' ') return false
+
+            // Check formula font (port of is_formula_font from rules.py)
+            if (fontName != null) {
+                val stripped = fontName.substringAfterLast('+')
+                if (FORMULA_FONT_PATTERN.matcher(stripped).find()) {
+                    return true
+                }
+            }
+
+            // Check Unicode category (port of vflag's unicodedata.category check)
+            val type = Character.getType(c).toByte().toInt()
+            if (type == Character.MATH_SYMBOL.toInt() ||          // Sm
+                type == Character.MODIFIER_LETTER.toInt() ||      // Lm
+                type == Character.NON_SPACING_MARK.toInt() ||     // Mn
+                type == Character.MODIFIER_SYMBOL.toInt() ||      // Sk
+                type == Character.LINE_SEPARATOR.toInt() ||       // Zl
+                type == Character.PARAGRAPH_SEPARATOR.toInt() ||  // Zp
+                type == Character.SPACE_SEPARATOR.toInt()         // Zs (non-space)
+            ) {
+                return true
+            }
+
+            // Check Greek range (U+0370–U+03FF)
+            if (c.code in 0x0370..0x03FF) {
+                return true
+            }
+
+            return false
+        }
+
+        /**
+         * Port of `run_is_prose()` from converter.py:254.
+         *
+         * A run held back for being small (sub/superscript) may actually be
+         * body text set under a larger label. A caption whose bold label is
+         * set larger than its body makes the whole body look like a subscript,
+         * so an entire figure caption would be preserved as source glyphs.
+         * Size alone cannot tell the two apart, but length and shape can: a
+         * run of 12+ characters containing a 3+ letter word is prose.
+         *
+         * Runs preserved for formula font or Unicode category never reach
+         * this test — only size-only preservations do.
+         */
+        private fun runIsProse(text: String): Boolean {
+            val visible = text.trim()
+            if (visible.length < MINIMUM_PROSE_RUN) return false
+            return PROSE_WORD_PATTERN.containsMatchIn(visible)
         }
 
         override fun writeString(text: String, textPositions: MutableList<TextPosition>) {
@@ -1559,27 +1667,54 @@ class PdfLayoutPreserver(private val context: Context) {
                 val baseFontSize = cluster.maxOf { it.fontSizeInPt }
                 val refDirAdj = first.yDirAdj
 
+                // ---- Windows-style formula detection ----
+                // Walk the cluster character by character. Characters that are
+                // formula (by font, Unicode category, or size) are accumulated
+                // into a formula run. When a non-formula character is seen, the
+                // accumulated run is flushed as a {vN} placeholder. This
+                // mirrors the vstk/var mechanism in the desktop converter.py.
                 val sb = StringBuilder()
+                val formulaRun = StringBuilder()
+                var formulaRunSizeOnly = true  // tracks whether run was held back only for size
+
+                fun flushFormulaRun() {
+                    val runText = formulaRun.toString()
+                    formulaRun.clear()
+                    if (runText.isEmpty()) return
+
+                    // Port of run_is_prose rescue: if the formula run was
+                    // only held back for being smaller than the body text
+                    // (not for font or Unicode category), and it reads as
+                    // prose, put it back as body text instead of a placeholder.
+                    if (formulaRunSizeOnly && runIsProse(runText)) {
+                        sb.append(runText)
+                    } else {
+                        val idx = formulaVars.size
+                        formulaVars.add(runText)
+                        sb.append("{v$idx}")
+                    }
+                    formulaRunSizeOnly = true
+                }
+
                 for (i in cluster.indices) {
                     val tp = cluster[i]
                     var ch = tp.unicode ?: ""
 
-                    // Detect word-spacing gaps between characters. PDFs often
-                    // represent spaces as positional gaps rather than actual
-                    // space characters, so we must insert them ourselves.
+                    // Detect word-spacing gaps between characters.
                     if (i > 0) {
                         val prev = cluster[i - 1]
                         val gap = tp.xDirAdj - (prev.xDirAdj + prev.widthDirAdj)
                         val avgFont = (prev.fontSizeInPt + tp.fontSizeInPt) / 2f
                         if (gap > avgFont * 0.16f) {
-                            sb.append(' ')
+                            if (formulaRun.isNotEmpty()) {
+                                formulaRun.append(' ')
+                            } else {
+                                sb.append(' ')
+                            }
                         }
                     }
 
-                    // TeX math symbol fonts (CMSY10, MSBM10, MSAM10, etc.) frequently lack a
-                    // usable ToUnicode mapping, so PDFBox returns blank/control characters for
-                    // glyphs like "∈", or renders a blackboard-bold letter (e.g. "R" for the
-                    // reals, ℝ) as a plain, unstyled letter. Resolve those via glyph name.
+                    // TeX math symbol font resolution
                     val texFallback = resolveTexFallback(tp)
                     if (texFallback != null &&
                         (ch.isEmpty() || ch.codePointAt(0) < 0x20 || ch != texFallback)
@@ -1588,19 +1723,49 @@ class PdfLayoutPreserver(private val context: Context) {
                     }
                     if (ch.isEmpty()) continue
 
-                    // yDirAdj increases *downward* on the page (image-space), so a smaller
-                    // yDirAdj than the reference baseline means the glyph sits above the line
-                    // (superscript, e.g. x²) and a larger yDirAdj means it sits below the line
-                    // (subscript, e.g. u₁, Q₁).
-                    val isRaised = tp.yDirAdj < refDirAdj - baseFontSize * 0.08f
-                    val isLowered = tp.yDirAdj > refDirAdj + baseFontSize * 0.08f
+                    // Determine if this character is formula-protected
+                    val fontName = try { tp.font?.name } catch (_: Exception) { null }
+                    val isFontOrCategoryFormula = isFormulaChar(ch, fontName)
 
-                    when {
-                        i > 0 && isRaised -> sb.append(toSuperscriptToken(ch))
-                        i > 0 && isLowered -> sb.append(toSubscriptToken(ch))
-                        else -> sb.append(ch)
+                    // Size-based formula detection (port of smaller_than_body):
+                    // a character significantly smaller than the body text is a
+                    // superscript or subscript and should be preserved.
+                    val isSmaller = i > 0 && tp.fontSizeInPt < baseFontSize * 0.79f
+
+                    // Position-based: raised or lowered from the baseline
+                    val isRaised = i > 0 && tp.yDirAdj < refDirAdj - baseFontSize * 0.08f
+                    val isLowered = i > 0 && tp.yDirAdj > refDirAdj + baseFontSize * 0.08f
+
+                    val isFormula = isFontOrCategoryFormula || isSmaller
+
+                    if (isFormula) {
+                        // Flush any accumulated body text's trailing space into
+                        // the formula run so it doesn't dangle.
+                        if (formulaRun.isEmpty() && sb.isNotEmpty() && sb.last() == ' ') {
+                            // keep space before formula in body text
+                        }
+                        if (isFontOrCategoryFormula) {
+                            formulaRunSizeOnly = false
+                        }
+                        // Convert to super/subscript tokens if positionally offset
+                        when {
+                            isRaised -> formulaRun.append(toSuperscriptToken(ch))
+                            isLowered -> formulaRun.append(toSubscriptToken(ch))
+                            else -> formulaRun.append(ch)
+                        }
+                    } else {
+                        // Non-formula character: flush any pending formula run
+                        if (formulaRun.isNotEmpty()) {
+                            flushFormulaRun()
+                        }
+                        sb.append(ch)
                     }
                 }
+                // Flush trailing formula run
+                if (formulaRun.isNotEmpty()) {
+                    flushFormulaRun()
+                }
+
                 val clusterText = sb.toString()
                 if (clusterText.isBlank()) continue
 

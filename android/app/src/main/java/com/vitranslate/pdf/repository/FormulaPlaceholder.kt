@@ -1,5 +1,6 @@
 package com.vitranslate.pdf.repository
 
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 class FormulaPlaceholderException(message: String) : Exception(message)
@@ -29,34 +30,19 @@ object FormulaPlaceholder {
         return sb.toString()
     }
 
-    private val EXPONENT_PATTERN = Pattern.compile(
-        """(?:\$[^\$]+\$|\\\([^\)]+\\\)|(?:[A-Za-z0-9_()\[\]{}]+(?:\^\{?[A-Za-z0-9_+\-()]+\}?|_[A-Za-z0-9_{}\-+()]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻₀₁₂₃₄₅₆₇₈₉]+)))"""
-    )
-
     /**
-     * Convert converter-internal `{vN}` markers and exponent expressions into translator-safe tag pairs `<bN></bN>`.
+     * Convert converter-internal `{vN}` markers into translator-safe tag pairs `<bN></bN>`.
+     * Port of Windows `encode_formula_placeholders` in translator.py:183.
      */
     fun encodeFormulaPlaceholders(text: String): String {
-        var result = text
-        val matcher = INTERNAL_PLACEHOLDER_PATTERN.matcher(result)
+        val matcher = INTERNAL_PLACEHOLDER_PATTERN.matcher(text)
         val sb = StringBuffer()
         while (matcher.find()) {
             val num = matcher.group(1)?.replace(" ", "") ?: "0"
             matcher.appendReplacement(sb, "<b$num></b$num>")
         }
         matcher.appendTail(sb)
-        result = sb.toString()
-
-        val expMatcher = EXPONENT_PATTERN.matcher(result)
-        val sbExp = StringBuffer()
-        var expCounter = 9000
-        while (expMatcher.find()) {
-            val matched = expMatcher.group()
-            expMatcher.appendReplacement(sbExp, "<b$expCounter>$matched</b$expCounter>")
-            expCounter++
-        }
-        expMatcher.appendTail(sbExp)
-        return sbExp.toString()
+        return sb.toString()
     }
 
     /**
@@ -105,23 +91,37 @@ object FormulaPlaceholder {
 
     /**
      * Validate translator output and restore tags to converter markers `{vN}`.
+     * Port of Windows `restore_formula_placeholders` in translator.py:191.
      */
     fun restoreFormulaPlaceholders(source: String, translated: String): String {
-        val cleanSource = source.replace(Regex("</?b9\\d{3}>"), "")
-        var cleanTranslated = translated.replace(Regex("</?b9\\d{3}>"), "")
-
-        val encodedSource = encodeFormulaPlaceholders(cleanSource)
-        val sourcePlaceholders = getPlaceholders(encodedSource).filterNot { it.matches(Regex("</?b9\\d{3}>")) }
-        val translatedPlaceholders = getPlaceholders(cleanTranslated).filterNot { it.matches(Regex("</?b9\\d{3}>")) }
+        val encodedSource = encodeFormulaPlaceholders(source)
+        val sourcePlaceholders = getPlaceholders(encodedSource)
+        val translatedPlaceholders = getPlaceholders(translated)
         if (sourcePlaceholders != translatedPlaceholders) {
             throw FormulaPlaceholderException("Formula placeholders were altered during translation")
         }
 
-        val matcher = PAIRED_PLACEHOLDER_PATTERN.matcher(cleanTranslated)
+        val matcher = PAIRED_PLACEHOLDER_PATTERN.matcher(translated)
         val sb = StringBuffer()
         while (matcher.find()) {
             val num = matcher.group(1) ?: "0"
             matcher.appendReplacement(sb, "{v$num}")
+        }
+        matcher.appendTail(sb)
+        return sb.toString()
+    }
+
+    /**
+     * Restores `{vN}` markers in text with original formula strings from formulaVars list.
+     */
+    fun restoreFormulaVars(text: String, formulaVars: List<String>): String {
+        if (formulaVars.isEmpty()) return text
+        val matcher = INTERNAL_PLACEHOLDER_PATTERN.matcher(text)
+        val sb = StringBuffer()
+        while (matcher.find()) {
+            val idx = matcher.group(1)?.toIntOrNull() ?: -1
+            val replacement = if (idx in formulaVars.indices) formulaVars[idx] else matcher.group()
+            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement))
         }
         matcher.appendTail(sb)
         return sb.toString()
