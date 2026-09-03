@@ -13,19 +13,19 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.regex.Pattern
 
-internal val DESKTOP_FORMULA_FONT_PATTERN = Pattern.compile(
-    "(CM[^R]|MS.M|XY|MT|BL|RM|EU|LA|RS|LINE|LCIRCLE|TeX-|rsfs|txsy|wasy|" +
-    "stmary|.*Mono|.*Code|.*Sym|.*Math|.*Typewriter|Cousine|Consolas|Menlo|" +
-    "Monaco|Inconsolata|Source.?Code|Fira.?Code|DejaVu.?Sans.?Mono|" +
-    "Liberation.?Mono|Courier)",
-    Pattern.CASE_INSENSITIVE
-)
-
-internal val DESKTOP_MATH_SYMBOL_PATTERN = Pattern.compile(
-    "[=≤≥≈≠±×÷·∑∫√∞∝+*/^]|\\\\log|\\\\lim|\\\\sin|\\\\cos|\\\\tan|\\\\cot|\\\\frac|\\\\sqrt"
-)
-
 object AdvancedPdfTranslator {
+
+    private val FORMULA_FONT_PATTERN = Pattern.compile(
+        "(CM[^R]|MS.M|XY|MT|BL|RM|EU|LA|RS|LINE|LCIRCLE|TeX-|rsfs|txsy|wasy|" +
+        "stmary|.*Mono|.*Code|.*Sym|.*Math|.*Typewriter|Cousine|Consolas|Menlo|" +
+        "Monaco|Inconsolata|Source.?Code|Fira.?Code|DejaVu.?Sans.?Mono|" +
+        "Liberation.?Mono|Courier)",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    private val MATH_SYMBOL_PATTERN = Pattern.compile(
+        "[=≤≥≈≠±×÷·∑∫√∞∝+*/^]|\\\\log|\\\\lim|\\\\sin|\\\\cos|\\\\tan|\\\\cot|\\\\frac|\\\\sqrt"
+    )
 
     fun translatePdfAdvanced(
         context: Context,
@@ -50,7 +50,7 @@ object AdvancedPdfTranslator {
             val selectedPages = PageSelectionParser.parsePageSelection(pageSelectionInput, totalPages)
             val selectedSet = selectedPages.toSet()
 
-            onLog("Trình dịch Nâng cao (PyMuPDF / Desktop 1:1 Mode) khởi chạy. Tổng số trang: $totalPages. Số trang dịch: ${selectedPages.size}")
+            onLog("Trình dịch Nâng cao (Windows pdf2zh Technique) khởi chạy. Tổng số trang: $totalPages. Số trang dịch: ${selectedPages.size}")
             onProgress(0, selectedPages.size, "Đang khởi tạo Trình dịch Nâng cao...")
 
             val font = PdfLayoutPreserver(context).loadBundledFont(document)
@@ -66,44 +66,43 @@ object AdvancedPdfTranslator {
                 }
 
                 val page = document.getPage(pageIndex)
-                val pageExtractor = DesktopParagraphExtractor(pageNum)
+                val pageExtractor = AdvancedLineBlockExtractor(pageNum)
                 pageExtractor.sortByPosition = true
                 pageExtractor.startPage = pageNum
                 pageExtractor.endPage = pageNum
                 pageExtractor.getText(document)
 
-                val paragraphs = pageExtractor.paragraphs
-                val translatedParagraphs = mutableListOf<String>()
+                val blocks = pageExtractor.blocks
+                val translatedTexts = mutableListOf<String>()
                 var translatedCount = 0
                 var skippedFormulaCount = pageExtractor.skippedFormulasCount
 
-                for (paragraph in paragraphs) {
+                for (block in blocks) {
                     if (isCancelled()) throw TranslationCancelledException()
-                    val srcText = paragraph.text.trim()
-                    if (srcText.isBlank() || paragraph.isPureMath) {
-                        translatedParagraphs.add(srcText)
+                    val srcText = block.text.trim()
+                    if (srcText.isBlank() || block.isPureMath) {
+                        translatedTexts.add(srcText)
                         continue
                     }
 
-                    // 1. Encode TeX formulas into translator-safe <b0></b0> tags (pdf2zh desktop algorithm: translator.py:183)
-                    val (encodedText, placeholders) = encodeFormulaPlaceholders(srcText, paragraph.mathSpans)
+                    // 1. TeX formula placeholder protection (<b0></b0>)
+                    val (encodedText, placeholders) = encodeFormulaPlaceholders(srcText, block.mathSpans)
                     try {
                         val rawTranslated = engine.translate(encodedText)
-                        // 2. Validate placeholder tags (pdf2zh desktop safety rule: translator.py:191)
-                        // If tags were altered or corrupted by the translator, return original English verbatim
+                        // 2. Validate placeholder tag safety post-translation
                         val restoredText = restoreFormulaPlaceholders(srcText, encodedText, rawTranslated, placeholders)
-                        translatedParagraphs.add(restoredText)
+                        translatedTexts.add(restoredText)
                         translatedCount++
                     } catch (_: Exception) {
-                        translatedParagraphs.add(srcText)
+                        translatedTexts.add(srcText)
                     }
                 }
 
-                // 3. Render translated text using exact matrix baseline positioning (Tm, TJ)
-                renderTranslatedPage(document, page, paragraphs, translatedParagraphs, font)
+                // 3. Render translated text with exact white-background masking to erase original English text (pdf2zh technique)
+                renderMaskedTranslatedPage(document, page, blocks, translatedTexts, font)
                 donePagesCount++
 
-                onLog("Trang $pageNum/$totalPages (Trình dịch Nâng cao Desktop): ${pageExtractor.lineCount} dòng gộp thành ${paragraphs.size} đoạn. Đã dịch: $translatedCount, Bảo tồn công thức: $skippedFormulaCount")
+                onLog("Trang $pageNum/$totalPages (Nâng cao Windows Mode): ${pageExtractor.lineCount} dòng -> ${blocks.size} khối text. Đã dịch: $translatedCount, Bảo tồn công thức: $skippedFormulaCount")
                 onProgress(donePagesCount, selectedPages.size, "Đã xử lý trang $pageNum/$totalPages")
             }
 
@@ -138,12 +137,10 @@ object AdvancedPdfTranslator {
         translated: String,
         placeholders: List<String>
     ): String {
-        // Validate placeholder counts match expected tags (pdf2zh desktop safety rule: translator.py:194)
         val expectedTags = placeholders.indices.map { "<b$it></b$it>" }
         val allTagsPresent = expectedTags.all { translated.contains(it) }
 
         if (!allTagsPresent) {
-            // Tag restoration failed or altered during translation -> return source verbatim to prevent tag leaks or math distortions
             return source
         }
 
@@ -154,14 +151,14 @@ object AdvancedPdfTranslator {
         return result
     }
 
-    private fun renderTranslatedPage(
+    private fun renderMaskedTranslatedPage(
         doc: PDDocument,
         page: PDPage,
-        paragraphs: List<DesktopParagraph>,
+        blocks: List<AdvancedBlock>,
         translatedTexts: List<String>,
         font: PDFont
     ) {
-        if (paragraphs.isEmpty()) return
+        if (blocks.isEmpty()) return
         val pageHeight = page.mediaBox.height
 
         val stream = PDPageContentStream(
@@ -172,30 +169,31 @@ object AdvancedPdfTranslator {
             true
         )
 
-        for (i in paragraphs.indices) {
-            val paragraph = paragraphs[i]
-            val translated = translatedTexts.getOrNull(i) ?: paragraph.text
-            if (translated.isBlank() || paragraph.isPureMath) continue
+        for (i in blocks.indices) {
+            val block = blocks[i]
+            val translated = translatedTexts.getOrNull(i) ?: block.text
+            if (translated.isBlank() || block.isPureMath) continue
 
-            // White mask padding
-            val padX = 0.5f
-            val padY = 0.2f
-            val rectX = (paragraph.x0 - padX).coerceAtLeast(0f)
-            val rectY = (pageHeight - paragraph.y1 - padY).coerceAtLeast(0f)
-            val rectW = paragraph.width + (padX * 2)
-            val rectH = paragraph.height + (padY * 2)
+            val sanitized = sanitizeForFont(translated, font)
+            if (sanitized.isBlank()) continue
+
+            // 1. Clean White Mask Bounding Box (pdf2zh technique to erase original text layer completely)
+            val padX = 1.0f
+            val padY = 1.0f
+            val rectX = (block.x0 - padX).coerceAtLeast(0f)
+            val rectY = (pageHeight - block.y1 - padY).coerceAtLeast(0f)
+            val rectW = (block.width + padX * 2).coerceAtLeast(1f)
+            val rectH = (block.height + padY * 2).coerceAtLeast(1f)
 
             stream.setNonStrokingColor(255, 255, 255)
             stream.addRect(rectX, rectY, rectW, rectH)
             stream.fill()
 
-            val sanitized = sanitizeForFont(translated, font)
-            if (sanitized.isBlank()) continue
-
+            // 2. Render Translated Text over clean white mask
             stream.beginText()
-            stream.setFont(font, paragraph.fontSize)
+            stream.setFont(font, block.fontSize)
             stream.setNonStrokingColor(0, 0, 0)
-            stream.newLineAtOffset(paragraph.x0, pageHeight - paragraph.y0 - paragraph.fontSize)
+            stream.newLineAtOffset(block.x0, pageHeight - block.y0 - (block.fontSize * 0.85f))
             stream.showText(sanitized)
             stream.endText()
         }
@@ -260,7 +258,7 @@ object AdvancedPdfTranslator {
     }
 }
 
-data class DesktopParagraph(
+data class AdvancedBlock(
     val text: String,
     val x0: Float,
     val y0: Float,
@@ -274,18 +272,21 @@ data class DesktopParagraph(
     val height: Float get() = (y1 - y0).coerceAtLeast(1f)
 }
 
-class DesktopParagraphExtractor(private val pageNum: Int) : PDFTextStripper() {
-    val paragraphs = mutableListOf<DesktopParagraph>()
+class AdvancedLineBlockExtractor(private val pageNum: Int) : PDFTextStripper() {
+    val blocks = mutableListOf<AdvancedBlock>()
     var lineCount = 0
     var skippedFormulasCount = 0
 
-    private var currentParagraphText = StringBuilder()
-    private var pX0 = Float.MAX_VALUE
-    private var pY0 = Float.MAX_VALUE
-    private var pX1 = Float.MIN_VALUE
-    private var pY1 = Float.MIN_VALUE
-    private var pFontSize = 10f
-    private val pMathSpans = mutableListOf<String>()
+    private val FORMULA_FONT_PATTERN = Pattern.compile(
+        "(CM[^R]|MS.M|XY|MT|BL|RM|EU|LA|RS|LINE|LCIRCLE|TeX-|rsfs|txsy|wasy|" +
+        "stmary|.*Mono|.*Code|.*Sym|.*Math|.*Typewriter|Cousine|Consolas|Menlo|" +
+        "Monaco|Inconsolata|Source.?Code|Fira.?Code|DejaVu.?Sans.?Mono|" +
+        "Liberation.?Mono|Courier)",
+        Pattern.CASE_INSENSITIVE
+    )
+    private val MATH_SYMBOL_PATTERN = Pattern.compile(
+        "[=≤≥≈≠±×÷·∑∫√∞∝+*/^]|\\\\log|\\\\lim|\\\\sin|\\\\cos|\\\\tan|\\\\cot|\\\\frac|\\\\sqrt"
+    )
 
     override fun writeString(text: String?, textPositions: MutableList<TextPosition>?) {
         if (textPositions.isNullOrEmpty()) return
@@ -297,68 +298,34 @@ class DesktopParagraphExtractor(private val pageNum: Int) : PDFTextStripper() {
 
         val isMathFont = textPositions.any { pos ->
             val fontName = pos.font?.name ?: ""
-            DESKTOP_FORMULA_FONT_PATTERN.matcher(fontName).find()
+            FORMULA_FONT_PATTERN.matcher(fontName).find()
         }
-        val hasMathSymbols = DESKTOP_MATH_SYMBOL_PATTERN.matcher(lineText).find()
+        val hasMathSymbols = MATH_SYMBOL_PATTERN.matcher(lineText).find()
         val isMathLine = isMathFont || hasMathSymbols
-
-        if (isMathLine) {
+        val mathSpans = if (isMathLine) {
             skippedFormulasCount++
-            pMathSpans.add(lineText)
-        }
+            listOf(lineText)
+        } else emptyList()
 
-        // Paragraph Assembly: Merge continuous lines into the same paragraph block (pdf2zh converter.py:920)
-        if (currentParagraphText.isNotEmpty()) {
-            val yGap = first.yDirAdj - pY1
-            // If line is close vertically and in same column block, merge into continuous paragraph string
-            if (yGap < first.heightDir * 2.0f && first.xDirAdj >= (pX0 - 15f)) {
-                currentParagraphText.append(" ").append(lineText)
-                pX0 = minOf(pX0, first.xDirAdj)
-                pY0 = minOf(pY0, first.yDirAdj)
-                pX1 = maxOf(pX1, last.xDirAdj + last.widthDirAdj)
-                pY1 = maxOf(pY1, first.yDirAdj + first.heightDir)
-                return
-            } else {
-                flushParagraph()
-            }
-        }
+        val x0 = first.xDirAdj
+        val y0 = first.yDirAdj
+        val x1 = last.xDirAdj + last.widthDirAdj
+        val y1 = first.yDirAdj + first.heightDir
+        val fontSize = first.fontSizeInPt
+        val isPureMath = isMathLine && lineText.length < 15
 
-        currentParagraphText.append(lineText)
-        pX0 = first.xDirAdj
-        pY0 = first.yDirAdj
-        pX1 = last.xDirAdj + last.widthDirAdj
-        pY1 = first.yDirAdj + first.heightDir
-        pFontSize = first.fontSizeInPt
-    }
-
-    override fun writePage() {
-        super.writePage()
-        flushParagraph()
-    }
-
-    private fun flushParagraph() {
-        if (currentParagraphText.isEmpty()) return
-        val fullText = currentParagraphText.toString().trim()
-        val isPureMath = fullText.startsWith("A.") || fullText.startsWith("B.") || fullText.startsWith("C.") || fullText.startsWith("D.") || fullText.length < 12
-
-        paragraphs.add(
-            DesktopParagraph(
-                text = fullText,
-                x0 = pX0,
-                y0 = pY0,
-                x1 = pX1,
-                y1 = pY1,
-                fontSize = pFontSize,
+        // Line-based clustering: Avoid page-wide over-merging by keeping blocks per physical line/paragraph
+        blocks.add(
+            AdvancedBlock(
+                text = lineText,
+                x0 = x0,
+                y0 = y0,
+                x1 = x1,
+                y1 = y1,
+                fontSize = fontSize,
                 isPureMath = isPureMath,
-                mathSpans = pMathSpans.toList()
+                mathSpans = mathSpans
             )
         )
-
-        currentParagraphText.clear()
-        pX0 = Float.MAX_VALUE
-        pY0 = Float.MAX_VALUE
-        pX1 = Float.MIN_VALUE
-        pY1 = Float.MIN_VALUE
-        pMathSpans.clear()
     }
 }
