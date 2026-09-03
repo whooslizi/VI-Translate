@@ -35,6 +35,10 @@ object TranslationController {
     private const val PREFS_NAME = "pdf_translate_prefs"
     private const val KEY_OVERWRITE = "overwrite_existing"
     private const val KEY_OUTPUT_DIR = "custom_output_dir"
+    private const val KEY_ENGINE_TYPE = "engine_type"
+    private const val KEY_LLM_API_KEY = "llm_api_key"
+    private const val KEY_LLM_BASE_URL = "llm_base_url"
+    private const val KEY_LLM_MODEL = "llm_model"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -86,6 +90,36 @@ object TranslationController {
     private val _activeFileName = MutableStateFlow<String?>(null)
     val activeFileName: StateFlow<String?> = _activeFileName.asStateFlow()
 
+    private val _engineType = MutableStateFlow("google")
+    val engineType: StateFlow<String> = _engineType.asStateFlow()
+
+    private val _llmApiKey = MutableStateFlow("")
+    val llmApiKey: StateFlow<String> = _llmApiKey.asStateFlow()
+
+    private val _llmBaseUrl = MutableStateFlow("https://api.openai.com/v1")
+    val llmBaseUrl: StateFlow<String> = _llmBaseUrl.asStateFlow()
+
+    private val _llmModelName = MutableStateFlow("gpt-4o-mini")
+    val llmModelName: StateFlow<String> = _llmModelName.asStateFlow()
+
+    fun setEngineType(type: String) {
+        _engineType.value = type
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()?.putString(KEY_ENGINE_TYPE, type)?.apply()
+    }
+
+    fun saveLlmSettings(apiKey: String, baseUrl: String, modelName: String) {
+        _llmApiKey.value = apiKey
+        _llmBaseUrl.value = baseUrl
+        _llmModelName.value = modelName
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)?.edit()?.apply {
+            putString(KEY_LLM_API_KEY, apiKey)
+            putString(KEY_LLM_BASE_URL, baseUrl)
+            putString(KEY_LLM_MODEL, modelName)
+            apply()
+        }
+    }
+
     fun initialise(context: Context) {
         if (initialised) return
         initialised = true
@@ -95,6 +129,10 @@ object TranslationController {
         val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _overwrite.value = prefs.getBoolean(KEY_OVERWRITE, false)
         _customOutputDirectory.value = prefs.getString(KEY_OUTPUT_DIR, null)
+        _engineType.value = prefs.getString(KEY_ENGINE_TYPE, "google") ?: "google"
+        _llmApiKey.value = prefs.getString(KEY_LLM_API_KEY, "") ?: ""
+        _llmBaseUrl.value = prefs.getString(KEY_LLM_BASE_URL, "https://api.openai.com/v1") ?: "https://api.openai.com/v1"
+        _llmModelName.value = prefs.getString(KEY_LLM_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
         scope.launch {
             val info = UpdateChecker().checkForUpdate()
             if (info != null && info.isNewerAvailable) {
@@ -250,6 +288,15 @@ object TranslationController {
                 updateItemStatus(item.id, TranslationStatus.RUNNING, "Đang dịch…")
 
                 try {
+                    val customEngine: TranslateEngine? = if (_engineType.value == "openai") {
+                        OpenAiTranslateEngine(
+                            apiKey = _llmApiKey.value,
+                            baseUrl = _llmBaseUrl.value,
+                            modelName = _llmModelName.value,
+                            targetLang = _selectedLanguage.value.code
+                        )
+                    } else null
+
                     val result = engine.translatePdf(
                         inputUri = item.uri,
                         outputDirUriOrPath = targetOutputDir,
@@ -269,7 +316,8 @@ object TranslationController {
                             )
                         },
                         onLog = { appendLog(it) },
-                        isCancelled = { cancelRequested }
+                        isCancelled = { cancelRequested },
+                        customEngine = customEngine
                     )
 
                     val partial = result.untranslatedCount > 0

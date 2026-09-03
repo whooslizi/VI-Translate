@@ -65,7 +65,8 @@ class PdfLayoutPreserver(private val context: Context) {
         overwrite: Boolean,
         onProgress: (done: Int, total: Int) -> Unit,
         onLog: ((String) -> Unit)? = null,
-        isCancelled: () -> Boolean = { false }
+        isCancelled: () -> Boolean = { false },
+        customEngine: TranslateEngine? = null
     ): TranslationResult {
         val originalFileName = getFileName(inputUri)
         onLog?.invoke("Bắt đầu xử lý file: $originalFileName (Ngôn ngữ đích: $targetLang, Ghi đè: $overwrite)")
@@ -77,7 +78,7 @@ class PdfLayoutPreserver(private val context: Context) {
         }
         val outputFileName = "$baseName-$targetLang.pdf"
         val (outputStream, resultPath) = prepareOutputStream(outputDirUriOrPath, outputFileName, overwrite)
-        val engine = GoogleTranslateEngine(sourceLang = "auto", targetLang = targetLang)
+        val engine = customEngine ?: GoogleTranslateEngine(sourceLang = "auto", targetLang = targetLang)
         var untranslatedCount = 0
 
         try {
@@ -535,12 +536,17 @@ class PdfLayoutPreserver(private val context: Context) {
             val trimmed = text.trim()
             if (trimmed.isEmpty()) return false
 
-            // A single short token carrying a character that prose never uses is
-            // a symbol, whatever else it contains. This is what keeps "εmax",
-            // "ρS" and "µST" out of the translator: they read as ordinary words
-            // to every test below, because their only unusual character is the
-            // leading Greek letter. Requiring no whitespace keeps the rule off
-            // sentences that merely mention a symbol in passing.
+            // Pure numbers or signed option numbers (e.g. "14", "-14", "26", "2.3", "4.")
+            if (trimmed.matches(Regex("^-?\\d+(?:[.,]\\d+)?\\.?$"))) {
+                return true
+            }
+
+            // Exponent / Subscript runs (e.g. "a_3^6", "x^2", "(x-1)^2", "P(X=0)")
+            if (trimmed.matches(Regex(".*[0-9A-Za-z]+[\\^\\_][0-9A-Za-z\\-\\+\\{\\}]+.*"))) {
+                return true
+            }
+
+            // A single short token carrying a character that prose never uses is a symbol
             if (trimmed.length <= SYMBOL_TOKEN_MAX_LENGTH &&
                 trimmed.none { it.isWhitespace() } &&
                 MATH_MARKER_PATTERN.containsMatchIn(trimmed)
@@ -559,8 +565,8 @@ class PdfLayoutPreserver(private val context: Context) {
                 }
             }
 
-            val hasMathOperators = Regex("[=/^√≤≥≠±∈∉⊂⊃∩∪]").containsMatchIn(trimmed)
-            if (hasMathOperators && trimmed.length <= 60 && letterRuns.count { it.length > 2 } <= 2) {
+            val hasMathOperators = Regex("[=/^√≤≥≠±∈∉⊂⊃∩∪+\\-*:]").containsMatchIn(trimmed)
+            if (hasMathOperators && trimmed.length <= 80 && letterRuns.count { it.length > 2 } <= 2) {
                 return true
             }
 

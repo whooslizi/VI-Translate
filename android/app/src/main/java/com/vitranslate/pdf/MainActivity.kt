@@ -183,9 +183,14 @@ fun MainScreen(
     val updateInfo by viewModel.updateInfo.collectAsState()
     val downloadPercent by viewModel.updateDownloadPercent.collectAsState()
     val downloadedApkUri by viewModel.downloadedApkUri.collectAsState()
+    val engineType by viewModel.engineType.collectAsState()
+    val llmApiKey by viewModel.llmApiKey.collectAsState()
+    val llmBaseUrl by viewModel.llmBaseUrl.collectAsState()
+    val llmModelName by viewModel.llmModelName.collectAsState()
 
     var showLogDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showLlmDialog by remember { mutableStateOf(false) }
     var currentLogText by remember { mutableStateOf("") }
 
     if (showLogDialog) {
@@ -203,6 +208,18 @@ fun MainScreen(
         AboutDialog(
             appVersion = BuildConfig.VERSION_NAME,
             onDismiss = { showAboutDialog = false }
+        )
+    }
+
+    if (showLlmDialog) {
+        LlmSettingsDialog(
+            initialApiKey = llmApiKey,
+            initialBaseUrl = llmBaseUrl,
+            initialModelName = llmModelName,
+            onDismiss = { showLlmDialog = false },
+            onSave = { apiKey, baseUrl, modelName ->
+                viewModel.saveLlmSettings(apiKey, baseUrl, modelName)
+            }
         )
     }
 
@@ -240,7 +257,10 @@ fun MainScreen(
             onPickSaveDirectory = onPickSaveDirectory,
             isTranslating = isTranslating,
             onStartTranslation = onStartTranslation,
-            onCancelTranslation = { viewModel.cancelTranslation() }
+            onCancelTranslation = { viewModel.cancelTranslation() },
+            engineType = engineType,
+            onEngineTypeChange = { viewModel.setEngineType(it) },
+            onOpenLlmSettings = { showLlmDialog = true }
         )
 
         QueueView(

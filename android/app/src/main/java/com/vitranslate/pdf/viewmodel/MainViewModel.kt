@@ -33,6 +33,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val updateInfo = TranslationController.updateInfo
     val updateDownloadPercent = TranslationController.updateDownloadPercent
     val downloadedApkUri = TranslationController.downloadedApkUri
+    val engineType = TranslationController.engineType
+    val llmApiKey = TranslationController.llmApiKey
+    val llmBaseUrl = TranslationController.llmBaseUrl
+    val llmModelName = TranslationController.llmModelName
+
+    fun setEngineType(type: String) = TranslationController.setEngineType(type)
+
+    fun saveLlmSettings(apiKey: String, baseUrl: String, modelName: String) =
+        TranslationController.saveLlmSettings(apiKey, baseUrl, modelName)
 
     fun downloadUpdate(onComplete: ((Uri) -> Unit)? = null) {
         TranslationController.downloadUpdate(getApplication(), onComplete)

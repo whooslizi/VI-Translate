@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,9 +30,13 @@ fun ControlsView(
     onPickSaveDirectory: () -> Unit,
     isTranslating: Boolean,
     onStartTranslation: () -> Unit,
-    onCancelTranslation: () -> Unit
+    onCancelTranslation: () -> Unit,
+    engineType: String = "google",
+    onEngineTypeChange: (String) -> Unit = {},
+    onOpenLlmSettings: () -> Unit = {}
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expandedLang by remember { mutableStateOf(false) }
+    var expandedEngine by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     val folderDisplayName = remember(customSaveDirectory) {
@@ -60,6 +65,77 @@ fun ControlsView(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Engine Picker & LLM Config Button
+            Text(
+                text = "Công cụ dịch",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ExposedDropdownMenuBox(
+                    expanded = expandedEngine,
+                    onExpandedChange = { if (!isTranslating) expandedEngine = !expandedEngine },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    OutlinedTextField(
+                        value = if (engineType == "openai") "🤖 OpenAI / Custom LLM" else "🌐 Google Translate (Miễn phí)",
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = !isTranslating,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEngine)
+                        },
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = !isTranslating)
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = expandedEngine,
+                        onDismissRequest = { expandedEngine = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("🌐 Google Translate (Miễn phí)", style = MaterialTheme.typography.bodyMedium) },
+                            onClick = {
+                                onEngineTypeChange("google")
+                                expandedEngine = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("🤖 OpenAI / Custom LLM (GPT-4o, DeepSeek)", style = MaterialTheme.typography.bodyMedium) },
+                            onClick = {
+                                onEngineTypeChange("openai")
+                                expandedEngine = false
+                            }
+                        )
+                    }
+                }
+
+                if (engineType == "openai") {
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = onOpenLlmSettings,
+                        enabled = !isTranslating
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Cấu hình AI LLM",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
             Text(
                 text = "Dịch sang",
                 style = MaterialTheme.typography.labelLarge,
@@ -67,12 +143,9 @@ fun ControlsView(
             )
             Spacer(Modifier.height(6.dp))
 
-            // The language picker used to share a row with the action button,
-            // which left it about half the screen wide on a phone. Full width
-            // here, with the action below it.
             ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { if (!isTranslating) expanded = !expanded }
+                expanded = expandedLang,
+                onExpandedChange = { if (!isTranslating) expandedLang = !expandedLang }
             ) {
                 OutlinedTextField(
                     value = selectedLanguage.name,
@@ -82,7 +155,7 @@ fun ControlsView(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLang)
                     },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = !isTranslating)
@@ -91,8 +164,8 @@ fun ControlsView(
                 )
 
                 ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    expanded = expandedLang,
+                    onDismissRequest = { expandedLang = false }
                 ) {
                     TargetLanguage.SUPPORTED_LANGUAGES.forEach { language ->
                         DropdownMenuItem(
@@ -101,7 +174,7 @@ fun ControlsView(
                             },
                             onClick = {
                                 onLanguageSelected(language)
-                                expanded = false
+                                expandedLang = false
                             }
                         )
                     }
@@ -143,8 +216,6 @@ fun ControlsView(
                 }
             }
 
-            // The whole row is the target rather than just the checkbox, and it
-            // is tall enough to hit without aiming.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -167,8 +238,6 @@ fun ControlsView(
 
             Spacer(Modifier.height(4.dp))
 
-            // A long run is the normal case, so the same button has to be the
-            // way out of it; a disabled "Đang dịch…" left no way to stop.
             Button(
                 onClick = { if (isTranslating) onCancelTranslation() else onStartTranslation() },
                 shape = RoundedCornerShape(12.dp),
