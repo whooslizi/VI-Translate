@@ -733,6 +733,7 @@ class PdfLayoutPreserver(private val context: Context) {
             fun reachesTheMargin(line: TextBlock): Boolean {
                 val column = columns[line] ?: return false
                 if (!column.isProse) return false
+                if (column.measure >= line.fontSize * 12f) return true
                 return line.width >= column.measure * PARAGRAPH_END_RATIO
             }
 
@@ -740,7 +741,15 @@ class PdfLayoutPreserver(private val context: Context) {
                 if (!sameColumn(previous, next)) return false
                 val gap = previous.y - next.y
                 val font = maxOf(previous.fontSize, next.fontSize)
-                if (gap <= font * 0.6f || gap > font * 2.0f) return false
+                if (gap <= font * 0.4f || gap > font * 2.5f) return false
+
+                val nextTrimmed = next.text.trim()
+                if (nextTrimmed.startsWith("A.") || nextTrimmed.startsWith("B.") ||
+                    nextTrimmed.startsWith("C.") || nextTrimmed.startsWith("D.") ||
+                    nextTrimmed.startsWith("Câu ") || nextTrimmed.startsWith("Question ")) {
+                    return false
+                }
+
                 return reachesTheMargin(previous)
             }
 
