@@ -1,6 +1,5 @@
 package com.vitranslate.pdf.repository
 
-import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 class FormulaPlaceholderException(message: String) : Exception(message)
@@ -32,7 +31,6 @@ object FormulaPlaceholder {
 
     /**
      * Convert converter-internal `{vN}` markers into translator-safe tag pairs `<bN></bN>`.
-     * Port of Windows `encode_formula_placeholders` in translator.py:183.
      */
     fun encodeFormulaPlaceholders(text: String): String {
         val matcher = INTERNAL_PLACEHOLDER_PATTERN.matcher(text)
@@ -91,15 +89,13 @@ object FormulaPlaceholder {
 
     /**
      * Validate translator output and restore tags to converter markers `{vN}`.
-     * Port of Windows `restore_formula_placeholders` in translator.py:191.
      */
     fun restoreFormulaPlaceholders(source: String, translated: String): String {
         val encodedSource = encodeFormulaPlaceholders(source)
-        val sourcePlaceholders = getPlaceholders(encodedSource)
-        val translatedPlaceholders = getPlaceholders(translated)
-        if (sourcePlaceholders != translatedPlaceholders) {
-            throw FormulaPlaceholderException("Formula placeholders were altered during translation")
+        if (getPlaceholders(encodedSource) != getPlaceholders(translated)) {
+            throw FormulaPlaceholderException("formula placeholders changed during translation")
         }
+        validateStyleTags(encodedSource, translated)
 
         val matcher = PAIRED_PLACEHOLDER_PATTERN.matcher(translated)
         val sb = StringBuffer()
@@ -108,29 +104,11 @@ object FormulaPlaceholder {
             matcher.appendReplacement(sb, "{v$num}")
         }
         matcher.appendTail(sb)
-        return sb.toString()
-    }
+        val restored = sb.toString()
 
-    /**
-     * Restores `{vN}` markers in text with original formula strings from formulaVars list.
-     */
-    fun restoreFormulaVars(text: String, formulaVars: List<String>): String {
-        if (formulaVars.isEmpty()) return text
-        val matcher = INTERNAL_PLACEHOLDER_PATTERN.matcher(text)
-        val sb = StringBuffer()
-        while (matcher.find()) {
-            val idx = matcher.group(1)?.toIntOrNull() ?: -1
-            val replacement = if (idx in formulaVars.indices) formulaVars[idx] else matcher.group()
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement))
+        if (PLACEHOLDER_PATTERN.matcher(restored).find()) {
+            throw FormulaPlaceholderException("formula placeholder pair is malformed")
         }
-        matcher.appendTail(sb)
-        return sb.toString()
-    }
-
-    /**
-     * Strips any leftover `{vN}` markers from text to ensure internal tags never leak into drawn PDF output.
-     */
-    fun stripInternalMarkers(text: String): String {
-        return INTERNAL_PLACEHOLDER_PATTERN.matcher(text).replaceAll("")
+        return restored
     }
 }

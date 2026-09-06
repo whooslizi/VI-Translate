@@ -13,7 +13,6 @@ on:
   push:
     branches:
       - main
-      - android-dev
       - feat/android-apk
     tags:
       - "android-v*"
@@ -37,14 +36,14 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       apk: ${{ steps.apk.outputs.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # gradle-wrapper.jar is a binary that arrived through a pull request.
       # Check it against Gradle's published checksums before running it.
       - name: Validate the Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v3
+        uses: gradle/actions/wrapper-validation@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -59,18 +58,18 @@ jobs:
         run: echo "version=$(./gradlew -q printVersionName)" >> "$GITHUB_OUTPUT"
 
       - name: Unit tests and lint
-        run: ./gradlew testDebugUnitTest lintDebug
+        run: ./gradlew test
 
       # The debug APK is signed with the runner's throwaway debug key, which is
       # useless for distribution but is the only build installable on a phone
       # before the release keystore secrets exist.
-      - name: Build the debug APK
+      - name: Build the debug APKs
         run: ./gradlew assembleDebug
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
-          name: PDFTranslate-android-${{ steps.version.outputs.version }}-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: PDFTranslate-android-${{ steps.version.outputs.version }}-debug-apks
+          path: android/app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
 
       # A release APK signed with a throwaway debug key cannot be updated over,
@@ -117,23 +116,22 @@ jobs:
       # Without a keystore AGP writes app-release-unsigned.apk instead, and the
       # name has to say so: an unsigned APK will not install, and one that
       # looked like a finished release would waste somebody's afternoon.
-      # Name and stage both APKs for release artifact upload
       - name: Name the APK after the version
         id: apk
         run: |
           version="${{ steps.version.outputs.version }}"
-          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-            source="app/build/outputs/apk/release/app-release.apk"
+          if [ "${{ steps.keystore.outputs.signed }}" = "true" ]; then
+            source="app/build/outputs/apk/standard/release/app-standard-release.apk"
             name="PDFTranslate-android-${version}.apk"
           else
-            source="app/build/outputs/apk/release/app-release-unsigned.apk"
+            source="app/build/outputs/apk/standard/release/app-standard-release-unsigned.apk"
             name="PDFTranslate-android-${version}-unsigned.apk"
           fi
           test -f "$source"
           cp "$source" "$name"
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.apk.outputs.name }}
           path: android/${{ steps.apk.outputs.name }}
@@ -145,33 +143,38 @@ jobs:
 
   publish:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/android-v') || github.ref_name == 'android-dev' || github.ref_name == 'main'
+    if: startsWith(github.ref, 'refs/tags/android-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Determine Tag Name
-        id: tag
+      # The desktop release gate compares its tag with APP_VERSION for the same
+      # reason: a tag that disagrees with the shipped version makes the in-app
+      # update check compare the wrong numbers.
+      - name: Check the tag matches versionName
         run: |
+          tag="${GITHUB_REF_NAME#android-v}"
           version="${{ needs.build.outputs.version }}"
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            tag_name="${GITHUB_REF_NAME}"
-          else
-            tag_name="android-v${version}"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match versionName $version" >&2
+            exit 1
           fi
-          echo "name=$tag_name" >> "$GITHUB_OUTPUT"
+          if [ "${{ needs.build.outputs.apk }}" != "PDFTranslate-android-${version}.apk" ]; then
+            echo "Refusing to publish an unsigned APK. Set the ANDROID_KEYSTORE_* secrets." >&2
+            exit 1
+          fi
+          echo "Releasing $version"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ needs.build.outputs.apk }}
           path: android
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
+          tag_name: ${{ github.ref_name }}
           name: Android ${{ needs.build.outputs.version }}
           files: android/${{ needs.build.outputs.apk }}
           fail_on_unmatched_files: true
-

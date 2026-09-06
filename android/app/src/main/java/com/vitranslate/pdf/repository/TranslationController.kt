@@ -35,10 +35,6 @@ object TranslationController {
     private const val PREFS_NAME = "pdf_translate_prefs"
     private const val KEY_OVERWRITE = "overwrite_existing"
     private const val KEY_OUTPUT_DIR = "custom_output_dir"
-    private const val KEY_ENGINE_TYPE = "engine_type"
-    private const val KEY_LLM_API_KEY = "llm_api_key"
-    private const val KEY_LLM_BASE_URL = "llm_base_url"
-    private const val KEY_LLM_MODEL = "llm_model"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -80,66 +76,9 @@ object TranslationController {
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
-    private val _updateDownloadPercent = MutableStateFlow<Int?>(null)
-    val updateDownloadPercent: StateFlow<Int?> = _updateDownloadPercent.asStateFlow()
-
-    private val _downloadedApkUri = MutableStateFlow<Uri?>(null)
-    val downloadedApkUri: StateFlow<Uri?> = _downloadedApkUri.asStateFlow()
-
     /** File being worked on right now, for the foreground notification. */
     private val _activeFileName = MutableStateFlow<String?>(null)
     val activeFileName: StateFlow<String?> = _activeFileName.asStateFlow()
-
-    private val _engineType = MutableStateFlow("google")
-    val engineType: StateFlow<String> = _engineType.asStateFlow()
-
-    private const val KEY_PAGE_SELECTION = "page_selection_input"
-    private const val KEY_ADVANCED_ENGINE_MODE = "advanced_engine_mode"
-
-    private val _pageSelectionInput = MutableStateFlow("all")
-    val pageSelectionInput: StateFlow<String> = _pageSelectionInput.asStateFlow()
-
-    private val _advancedEngineMode = MutableStateFlow(false)
-    val advancedEngineMode: StateFlow<Boolean> = _advancedEngineMode.asStateFlow()
-
-    fun setAdvancedEngineMode(enabled: Boolean) {
-        _advancedEngineMode.value = enabled
-        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            ?.edit()?.putBoolean(KEY_ADVANCED_ENGINE_MODE, enabled)?.apply()
-    }
-
-    fun setPageSelectionInput(input: String) {
-        _pageSelectionInput.value = input
-        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            ?.edit()?.putString(KEY_PAGE_SELECTION, input)?.apply()
-    }
-
-    private val _llmApiKey = MutableStateFlow("")
-    val llmApiKey: StateFlow<String> = _llmApiKey.asStateFlow()
-
-    private val _llmBaseUrl = MutableStateFlow("https://api.openai.com/v1")
-    val llmBaseUrl: StateFlow<String> = _llmBaseUrl.asStateFlow()
-
-    private val _llmModelName = MutableStateFlow("gpt-4o-mini")
-    val llmModelName: StateFlow<String> = _llmModelName.asStateFlow()
-
-    fun setEngineType(type: String) {
-        _engineType.value = type
-        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            ?.edit()?.putString(KEY_ENGINE_TYPE, type)?.apply()
-    }
-
-    fun saveLlmSettings(apiKey: String, baseUrl: String, modelName: String) {
-        _llmApiKey.value = apiKey
-        _llmBaseUrl.value = baseUrl
-        _llmModelName.value = modelName
-        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)?.edit()?.apply {
-            putString(KEY_LLM_API_KEY, apiKey)
-            putString(KEY_LLM_BASE_URL, baseUrl)
-            putString(KEY_LLM_MODEL, modelName)
-            apply()
-        }
-    }
 
     fun initialise(context: Context) {
         if (initialised) return
@@ -150,34 +89,10 @@ object TranslationController {
         val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _overwrite.value = prefs.getBoolean(KEY_OVERWRITE, false)
         _customOutputDirectory.value = prefs.getString(KEY_OUTPUT_DIR, null)
-        _engineType.value = prefs.getString(KEY_ENGINE_TYPE, "google") ?: "google"
-        _llmApiKey.value = prefs.getString(KEY_LLM_API_KEY, "") ?: ""
-        _llmBaseUrl.value = prefs.getString(KEY_LLM_BASE_URL, "https://api.openai.com/v1") ?: "https://api.openai.com/v1"
-        _llmModelName.value = prefs.getString(KEY_LLM_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
-        _pageSelectionInput.value = prefs.getString(KEY_PAGE_SELECTION, "all") ?: "all"
-        _advancedEngineMode.value = prefs.getBoolean(KEY_ADVANCED_ENGINE_MODE, false)
         scope.launch {
             val info = UpdateChecker().checkForUpdate()
             if (info != null && info.isNewerAvailable) {
                 _updateInfo.value = info
-            }
-        }
-    }
-
-    fun downloadUpdate(context: Context, onComplete: ((Uri) -> Unit)? = null) {
-        val info = _updateInfo.value ?: return
-        val apkUrl = info.apkUrl ?: return
-        val fileName = info.apkName ?: "PDFTranslate-${info.latestVersion}.apk"
-
-        scope.launch {
-            _updateDownloadPercent.value = 0
-            val uri = ApkDownloader(context).downloadApk(apkUrl, fileName) { percent ->
-                _updateDownloadPercent.value = percent
-            }
-            _updateDownloadPercent.value = null
-            if (uri != null) {
-                _downloadedApkUri.value = uri
-                onComplete?.invoke(uri)
             }
         }
     }
@@ -311,29 +226,18 @@ object TranslationController {
                 updateItemStatus(item.id, TranslationStatus.RUNNING, "Đang dịch…")
 
                 try {
-                    val customEngine: TranslateEngine? = if (_engineType.value == "openai") {
-                        OpenAiTranslateEngine(
-                            apiKey = _llmApiKey.value,
-                            baseUrl = _llmBaseUrl.value,
-                            modelName = _llmModelName.value,
-                            targetLang = _selectedLanguage.value.code
-                        )
-                    } else null
-
                     val result = engine.translatePdf(
                         inputUri = item.uri,
                         outputDirUriOrPath = targetOutputDir,
                         targetLang = _selectedLanguage.value.code,
                         overwrite = _overwrite.value,
-                        pageSelectionInput = _pageSelectionInput.value,
                         onProgress = { donePages, totalPages ->
                             _isIndeterminate.value = false
                             val fileFraction =
                                 if (totalPages > 0) donePages.toFloat() / totalPages else 0f
                             _progress.value = (completedFiles + fileFraction) / totalFiles
-                            val engineLabel = if (_advancedEngineMode.value) "(Nâng cao)" else ""
                             _statusText.value =
-                                "Đang dịch ${item.name} $engineLabel   trang $donePages/$totalPages"
+                                "Đang dịch ${item.name}   trang $donePages/$totalPages"
                             updateItemStatus(
                                 item.id,
                                 TranslationStatus.RUNNING,
@@ -341,8 +245,7 @@ object TranslationController {
                             )
                         },
                         onLog = { appendLog(it) },
-                        isCancelled = { cancelRequested },
-                        customEngine = customEngine
+                        isCancelled = { cancelRequested }
                     )
 
                     val partial = result.untranslatedCount > 0

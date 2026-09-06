@@ -11,7 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Image
@@ -26,13 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.vitranslate.pdf.R
 
-import com.vitranslate.pdf.model.UpdateInfo
-
 @Composable
 fun AboutDialog(
     appVersion: String,
-    updateInfo: UpdateInfo? = null,
-    onCheckUpdate: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -119,60 +115,6 @@ fun AboutDialog(
 
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
-                        text = "Phông chữ ứng dụng",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    var useDeviceFont by remember { androidx.compose.runtime.mutableStateOf(com.vitranslate.pdf.repository.AppFontPreference.isUseDeviceFont(context)) }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                useDeviceFont = false
-                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, false)
-                            }
-                    ) {
-                        RadioButton(
-                            selected = !useDeviceFont,
-                            onClick = {
-                                useDeviceFont = false
-                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, false)
-                            }
-                        )
-                        Text(
-                            text = "Phông chữ của ứng dụng",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                useDeviceFont = true
-                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, true)
-                            }
-                    ) {
-                        RadioButton(
-                            selected = useDeviceFont,
-                            onClick = {
-                                useDeviceFont = true
-                                com.vitranslate.pdf.repository.AppFontPreference.setUseDeviceFont(context, true)
-                            }
-                        )
-                        Text(
-                            text = "Sử dụng phông chữ của thiết bị",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
                         text = "Các dự án nguồn & Tác giả (Credits):",
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary
@@ -206,51 +148,6 @@ fun AboutDialog(
                         url = babelDocUrl,
                         onOpen = { openUrl(babelDocUrl) }
                     )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Update Status Section
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Nguồn cập nhật chính thức:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = if (updateInfo?.isNewerAvailable == true)
-                                        "Có bản mới: ${updateInfo.latestVersion}"
-                                    else
-                                        "Bạn đang dùng bản mới nhất (v$appVersion)",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                    color = if (updateInfo?.isNewerAvailable == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            if (onCheckUpdate != null) {
-                                OutlinedButton(
-                                    onClick = {
-                                        onCheckUpdate()
-                                        openUrl(officialSourceUrl + "/releases")
-                                    },
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                ) {
-                                    Text("Kiểm tra cập nhật", style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))

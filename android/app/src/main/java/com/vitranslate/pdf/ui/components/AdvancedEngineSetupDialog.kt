@@ -1,87 +1,101 @@
 package com.vitranslate.pdf.ui.components
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AdvancedEngineSetupDialog(
-    onDismiss: () -> Unit
+    initialUrl: String,
+    onDismissRequest: () -> Unit,
+    onSave: (serverUrl: String) -> Unit,
+    onTestConnection: suspend (url: String) -> Boolean
 ) {
-    val context = LocalContext.current
-    val downloadUrl = "https://github.com/whooslizi/VI-Translate/releases/latest"
+    var urlText by remember { mutableStateOf(initialUrl) }
+    var connectionStatus by remember { mutableStateOf<String?>(null) }
+    var isTesting by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
-        },
+        onDismissRequest = onDismissRequest,
         title = {
             Text(
-                text = "Thiết lập trình dịch nâng cao",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                text = "Cấu hình Advanced Engine",
+                style = MaterialTheme.typography.titleLarge
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
-                    text = "Trình dịch nâng cao mang đến khả năng tái tạo công thức toán học, bảng biểu và xử lý hình ảnh (OCR) với chất lượng cao hơn.",
+                    text = "Bản Standard Engine (PDFBox) chạy trực tiếp offline trên máy. Bật Advanced Engine để kết nối với máy chủ máy tính (C binary / ONNX) cho việc xử lý công thức nâng cao và OCR.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Text(
-                    text = "Để giữ ứng dụng chính nhẹ và nhanh, thành phần nâng cao được phát hành dưới dạng một ứng dụng phụ trợ độc lập.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                OutlinedTextField(
+                    value = urlText,
+                    onValueChange = {
+                        urlText = it
+                        connectionStatus = null
+                    },
+                    label = { Text("URL máy chủ (VD: http://192.168.1.100:8000)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Text(
-                    text = "Nhấn nút bên dưới để tải về file cài đặt (.apk) của trình dịch nâng cao từ GitHub.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                connectionStatus?.let { status ->
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (status.contains("thành công")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    try {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl))
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
-                    onDismiss()
-                },
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("Tải về gói nâng cao (APK)")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = {
+                        isTesting = true
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val success = onTestConnection(urlText)
+                            withContext(Dispatchers.Main) {
+                                connectionStatus = if (success) "Kết nối thành công!" else "Lỗi: Không thể kết nối tới máy chủ"
+                                isTesting = false
+                            }
+                        }
+                    },
+                    enabled = !isTesting && urlText.isNotBlank()
+                ) {
+                    Text("Thử kết nối")
+                }
+
+                Button(
+                    onClick = {
+                        onSave(urlText)
+                        onDismissRequest()
+                    },
+                    enabled = urlText.isNotBlank()
+                ) {
+                    Text("Lưu")
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Đóng")
+            OutlinedButton(onClick = onDismissRequest) {
+                Text("Hủy")
             }
-        },
-        shape = RoundedCornerShape(16.dp)
+        }
     )
 }

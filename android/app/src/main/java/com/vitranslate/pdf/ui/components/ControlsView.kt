@@ -5,9 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,23 +29,10 @@ fun ControlsView(
     onPickSaveDirectory: () -> Unit,
     isTranslating: Boolean,
     onStartTranslation: () -> Unit,
-    onCancelTranslation: () -> Unit,
-    engineType: String = "google",
-    onEngineTypeChange: (String) -> Unit = {},
-    onOpenLlmSettings: () -> Unit = {},
-    pageSelectionInput: String = "all",
-    onPageSelectionChange: (String) -> Unit = {},
-    advancedEngineMode: Boolean = false,
-    onAdvancedEngineModeChange: (Boolean) -> Unit = {}
+    onCancelTranslation: () -> Unit
 ) {
-    var expandedLang by remember { mutableStateOf(false) }
-    var expandedEngine by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    var isAdvancedAddonInstalled by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        isAdvancedAddonInstalled = com.vitranslate.pdf.repository.AdvancedEngineManager.isAddonInstalled(context)
-    }
 
     val folderDisplayName = remember(customSaveDirectory) {
         if (customSaveDirectory.isNullOrBlank()) {
@@ -75,200 +60,6 @@ fun ControlsView(
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Engine Picker & LLM Config Button
-            Text(
-                text = "Công cụ dịch",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ExposedDropdownMenuBox(
-                    expanded = expandedEngine,
-                    onExpandedChange = { if (!isTranslating) expandedEngine = !expandedEngine },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    OutlinedTextField(
-                        value = if (engineType == "openai") "OpenAI / Custom LLM" else "Google Translate (Miễn phí)",
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = !isTranslating,
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        trailingIcon = {
-                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEngine)
-                        },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = !isTranslating)
-                            .fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = expandedEngine,
-                        onDismissRequest = { expandedEngine = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Google Translate (Miễn phí)", style = MaterialTheme.typography.bodyMedium) },
-                            onClick = {
-                                onEngineTypeChange("google")
-                                expandedEngine = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("OpenAI / Custom LLM (GPT-4o, DeepSeek)", style = MaterialTheme.typography.bodyMedium) },
-                            onClick = {
-                                onEngineTypeChange("openai")
-                                expandedEngine = false
-                            }
-                        )
-                    }
-                }
-
-                if (engineType == "openai") {
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = onOpenLlmSettings,
-                        enabled = !isTranslating
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Cấu hình AI LLM",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            var showSetupDialog by remember { mutableStateOf(false) }
-
-            Text(
-                text = "Trình dịch PDF",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(6.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(false) }
-                    .padding(vertical = 4.dp)
-            ) {
-                RadioButton(
-                    selected = !advancedEngineMode,
-                    onClick = { if (!isTranslating) onAdvancedEngineModeChange(false) },
-                    enabled = !isTranslating
-                )
-                Column {
-                    Text(
-                        text = "Cơ bản",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Nhanh, nhẹ, phù hợp với tài liệu thông thường",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !isTranslating) { onAdvancedEngineModeChange(true) }
-                    .padding(vertical = 4.dp)
-            ) {
-                RadioButton(
-                    selected = advancedEngineMode,
-                    onClick = { if (!isTranslating) onAdvancedEngineModeChange(true) },
-                    enabled = !isTranslating
-                )
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Nâng cao",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        if (isAdvancedAddonInstalled) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        text = "Đã sẵn sàng",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                        } else {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    text = "Chưa cài đặt",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = "Chất lượng bố cục, công thức và OCR cao hơn",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            if (advancedEngineMode && !isAdvancedAddonInstalled) {
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { showSetupDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Thiết lập trình dịch nâng cao", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-
-            if (showSetupDialog) {
-                AdvancedEngineSetupDialog(onDismiss = { showSetupDialog = false })
-            }
-
-            Spacer(Modifier.height(12.dp))
-
             Text(
                 text = "Dịch sang",
                 style = MaterialTheme.typography.labelLarge,
@@ -276,9 +67,12 @@ fun ControlsView(
             )
             Spacer(Modifier.height(6.dp))
 
+            // The language picker used to share a row with the action button,
+            // which left it about half the screen wide on a phone. Full width
+            // here, with the action below it.
             ExposedDropdownMenuBox(
-                expanded = expandedLang,
-                onExpandedChange = { if (!isTranslating) expandedLang = !expandedLang }
+                expanded = expanded,
+                onExpandedChange = { if (!isTranslating) expanded = !expanded }
             ) {
                 OutlinedTextField(
                     value = selectedLanguage.name,
@@ -288,7 +82,7 @@ fun ControlsView(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLang)
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                     },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = !isTranslating)
@@ -297,8 +91,8 @@ fun ControlsView(
                 )
 
                 ExposedDropdownMenu(
-                    expanded = expandedLang,
-                    onDismissRequest = { expandedLang = false }
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
                 ) {
                     TargetLanguage.SUPPORTED_LANGUAGES.forEach { language ->
                         DropdownMenuItem(
@@ -307,64 +101,11 @@ fun ControlsView(
                             },
                             onClick = {
                                 onLanguageSelected(language)
-                                expandedLang = false
+                                expanded = false
                             }
                         )
                     }
                 }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                text = "Tùy chọn trang dịch",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(4.dp))
-
-            val isAllPages = pageSelectionInput.equals("all", ignoreCase = true) || pageSelectionInput.isBlank()
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = isAllPages,
-                    onClick = { if (!isTranslating) onPageSelectionChange("all") },
-                    enabled = !isTranslating
-                )
-                Text(
-                    text = "Tất cả các trang",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.clickable(enabled = !isTranslating) { onPageSelectionChange("all") }
-                )
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(
-                    selected = !isAllPages,
-                    onClick = { if (!isTranslating && isAllPages) onPageSelectionChange("Từ 1 đến 10 (bỏ )") },
-                    enabled = !isTranslating
-                )
-                Text(
-                    text = "Chọn trang cụ thể (Từ trang... đến... bỏ trang...)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.clickable(enabled = !isTranslating) {
-                        if (isAllPages) onPageSelectionChange("Từ 1 đến 10 (bỏ )")
-                    }
-                )
-            }
-
-            if (!isAllPages) {
-                Spacer(Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = pageSelectionInput,
-                    onValueChange = onPageSelectionChange,
-                    enabled = !isTranslating,
-                    singleLine = true,
-                    placeholder = { Text("Ví dụ: Từ 1 đến 5 (bỏ 2,3) hoặc 1-3, 7", style = MaterialTheme.typography.bodyMedium) },
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
             }
 
             Spacer(Modifier.height(12.dp))
@@ -402,6 +143,8 @@ fun ControlsView(
                 }
             }
 
+            // The whole row is the target rather than just the checkbox, and it
+            // is tall enough to hit without aiming.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -424,6 +167,8 @@ fun ControlsView(
 
             Spacer(Modifier.height(4.dp))
 
+            // A long run is the normal case, so the same button has to be the
+            // way out of it; a disabled "Đang dịch…" left no way to stop.
             Button(
                 onClick = { if (isTranslating) onCancelTranslation() else onStartTranslation() },
                 shape = RoundedCornerShape(12.dp),

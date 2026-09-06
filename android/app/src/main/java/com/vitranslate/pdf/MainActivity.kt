@@ -12,12 +12,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.vitranslate.pdf.ui.components.*
 import com.vitranslate.pdf.ui.theme.PDFTranslateTheme
 import com.vitranslate.pdf.viewmodel.MainViewModel
@@ -96,8 +93,7 @@ class MainActivity : ComponentActivity() {
                         onPickFiles = { pickFilesLauncher.launch(arrayOf("application/pdf")) },
                         onPickDirectory = { pickDirectoryLauncher.launch(null) },
                         onPickSaveDirectory = { pickSaveDirectoryLauncher.launch(null) },
-                        onStartTranslation = { startTranslationAskingToNotify() },
-                        onInstallApk = { installApk(it) }
+                        onStartTranslation = { startTranslationAskingToNotify() }
                     )
                 }
             }
@@ -123,26 +119,6 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         viewModel.startTranslation()
-    }
-
-    fun installApk(apkUri: Uri) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (!packageManager.canRequestPackageInstalls()) {
-                startActivity(
-                    Intent(
-                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:$packageName")
-                    )
-                )
-                return
-            }
-        }
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(apkUri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        runCatching { startActivity(intent) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -171,8 +147,7 @@ fun MainScreen(
     onPickFiles: () -> Unit,
     onPickDirectory: () -> Unit,
     onPickSaveDirectory: () -> Unit,
-    onStartTranslation: () -> Unit,
-    onInstallApk: (Uri) -> Unit = {}
+    onStartTranslation: () -> Unit
 ) {
     val queueItems by viewModel.queueItems.collectAsState()
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
@@ -184,20 +159,10 @@ fun MainScreen(
     val statusText by viewModel.statusText.collectAsState()
     val lastOutputDirectory by viewModel.lastOutputDirectory.collectAsState()
     val updateInfo by viewModel.updateInfo.collectAsState()
-    val downloadPercent by viewModel.updateDownloadPercent.collectAsState()
-    val downloadedApkUri by viewModel.downloadedApkUri.collectAsState()
-    val engineType by viewModel.engineType.collectAsState()
-    val llmApiKey by viewModel.llmApiKey.collectAsState()
-    val llmBaseUrl by viewModel.llmBaseUrl.collectAsState()
-    val llmModelName by viewModel.llmModelName.collectAsState()
-    val pageSelectionInput by viewModel.pageSelectionInput.collectAsState()
-    val advancedEngineMode by viewModel.advancedEngineMode.collectAsState()
 
     var showLogDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showLlmDialog by remember { mutableStateOf(false) }
     var currentLogText by remember { mutableStateOf("") }
-    val mainScrollState = rememberScrollState()
 
     if (showLogDialog) {
         LogViewerDialog(
@@ -213,21 +178,7 @@ fun MainScreen(
     if (showAboutDialog) {
         AboutDialog(
             appVersion = BuildConfig.VERSION_NAME,
-            updateInfo = updateInfo,
-            onCheckUpdate = { viewModel.downloadUpdate() },
             onDismiss = { showAboutDialog = false }
-        )
-    }
-
-    if (showLlmDialog) {
-        LlmSettingsDialog(
-            initialApiKey = llmApiKey,
-            initialBaseUrl = llmBaseUrl,
-            initialModelName = llmModelName,
-            onDismiss = { showLlmDialog = false },
-            onSave = { apiKey, baseUrl, modelName ->
-                viewModel.saveLlmSettings(apiKey, baseUrl, modelName)
-            }
         )
     }
 
@@ -237,10 +188,6 @@ fun MainScreen(
         HeaderView(
             appVersion = BuildConfig.VERSION_NAME,
             updateInfo = updateInfo,
-            downloadPercent = downloadPercent,
-            downloadedApkUri = downloadedApkUri,
-            onDownloadUpdate = { viewModel.downloadUpdate() },
-            onInstallApk = onInstallApk,
             onShowLog = {
                 currentLogText = viewModel.getLogContent()
                 showLogDialog = true
@@ -250,45 +197,31 @@ fun MainScreen(
             }
         )
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(mainScrollState)
-        ) {
-            FilePickerView(
-                hasFiles = queueItems.isNotEmpty(),
-                onPickFiles = onPickFiles,
-                onPickDirectory = onPickDirectory
-            )
+        FilePickerView(
+            hasFiles = queueItems.isNotEmpty(),
+            onPickFiles = onPickFiles,
+            onPickDirectory = onPickDirectory
+        )
 
-            ControlsView(
-                selectedLanguage = selectedLanguage,
-                onLanguageSelected = { viewModel.setSelectedLanguage(it) },
-                overwrite = overwrite,
-                onOverwriteChange = { viewModel.setOverwrite(it) },
-                customSaveDirectory = customSaveDirectory,
-                onPickSaveDirectory = onPickSaveDirectory,
-                isTranslating = isTranslating,
-                onStartTranslation = onStartTranslation,
-                onCancelTranslation = { viewModel.cancelTranslation() },
-                engineType = engineType,
-                onEngineTypeChange = { viewModel.setEngineType(it) },
-                onOpenLlmSettings = { showLlmDialog = true },
-                pageSelectionInput = pageSelectionInput,
-                onPageSelectionChange = { viewModel.setPageSelectionInput(it) },
-                advancedEngineMode = advancedEngineMode,
-                onAdvancedEngineModeChange = { viewModel.setAdvancedEngineMode(it) }
-            )
+        ControlsView(
+            selectedLanguage = selectedLanguage,
+            onLanguageSelected = { viewModel.setSelectedLanguage(it) },
+            overwrite = overwrite,
+            onOverwriteChange = { viewModel.setOverwrite(it) },
+            customSaveDirectory = customSaveDirectory,
+            onPickSaveDirectory = onPickSaveDirectory,
+            isTranslating = isTranslating,
+            onStartTranslation = onStartTranslation,
+            onCancelTranslation = { viewModel.cancelTranslation() }
+        )
 
-            QueueView(
-                items = queueItems,
-                isTranslating = isTranslating,
-                onRemoveItem = { viewModel.removeItem(it) },
-                onClearQueue = { viewModel.clearQueue() },
-                modifier = Modifier.heightIn(max = 300.dp)
-            )
-        }
+        QueueView(
+            items = queueItems,
+            isTranslating = isTranslating,
+            onRemoveItem = { viewModel.removeItem(it) },
+            onClearQueue = { viewModel.clearQueue() },
+            modifier = Modifier.weight(1f)
+        )
 
         FooterView(
             isTranslating = isTranslating,

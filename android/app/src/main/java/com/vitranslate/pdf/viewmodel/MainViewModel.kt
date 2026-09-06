@@ -31,27 +31,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val statusText = TranslationController.statusText
     val lastOutputDirectory = TranslationController.lastOutputDirectory
     val updateInfo = TranslationController.updateInfo
-    val updateDownloadPercent = TranslationController.updateDownloadPercent
-    val downloadedApkUri = TranslationController.downloadedApkUri
-    val engineType = TranslationController.engineType
-    val llmApiKey = TranslationController.llmApiKey
-    val llmBaseUrl = TranslationController.llmBaseUrl
-    val llmModelName = TranslationController.llmModelName
-    val pageSelectionInput = TranslationController.pageSelectionInput
-    val advancedEngineMode = TranslationController.advancedEngineMode
-
-    fun setAdvancedEngineMode(enabled: Boolean) = TranslationController.setAdvancedEngineMode(enabled)
-
-    fun setPageSelectionInput(input: String) = TranslationController.setPageSelectionInput(input)
-
-    fun setEngineType(type: String) = TranslationController.setEngineType(type)
-
-    fun saveLlmSettings(apiKey: String, baseUrl: String, modelName: String) =
-        TranslationController.saveLlmSettings(apiKey, baseUrl, modelName)
-
-    fun downloadUpdate(onComplete: ((Uri) -> Unit)? = null) {
-        TranslationController.downloadUpdate(getApplication(), onComplete)
-    }
 
     fun setSelectedLanguage(language: TargetLanguage) =
         TranslationController.setSelectedLanguage(language)

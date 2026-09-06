@@ -34,7 +34,7 @@ val hasReleaseSigning = releaseStorePath != null &&
 
 // The one number to change for a release. Everything else follows from it: the
 // tag the workflow accepts, the name of the published APK, and versionCode.
-val appVersionName = "0.3.6"
+val appVersionName = "0.1.0"
 
 /**
  * Android refuses to install over a build whose versionCode is not lower, and
@@ -72,6 +72,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    flavorDimensions += "engine"
+
+    productFlavors {
+        create("standard") {
+            dimension = "engine"
+            applicationIdSuffix = ".standard"
+            versionNameSuffix = "-standard"
+            buildConfigField("String", "ENGINE_TYPE", "\"STANDARD\"")
+        }
+        create("advanced") {
+            dimension = "engine"
+            applicationIdSuffix = ".advanced"
+            versionNameSuffix = "-advanced"
+            buildConfigField("String", "ENGINE_TYPE", "\"ADVANCED\"")
+        }
+    }
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {
@@ -89,7 +106,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -110,7 +127,6 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-        aidl = true
     }
 
     lint {
@@ -139,11 +155,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.pdfbox.android)
-    implementation(project(":advanced-engine"))
-
-    // Offline Native Android OCR (ML Kit) & Neural Layout Model Engine (ONNX Runtime)
-    implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.onnxruntime.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
