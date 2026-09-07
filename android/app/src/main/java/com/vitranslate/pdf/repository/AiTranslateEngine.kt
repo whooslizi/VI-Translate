@@ -108,6 +108,12 @@ class AiTranslateEngine(
             val choices = jsonResp.optJSONArray("choices") ?: throw IOException("Invalid AI response")
             if (choices.length() == 0) throw IOException("AI returned no content")
             val content = choices.getJSONObject(0).getJSONObject("message").optString("content", "")
+
+            val usage = jsonResp.optJSONObject("usage")
+            val promptTok = usage?.optInt("prompt_tokens") ?: estimateTokenCount(systemPrompt() + query)
+            val compTok = usage?.optInt("completion_tokens") ?: estimateTokenCount(content)
+            recordTokens(promptTok, compTok)
+
             return FormulaPlaceholder.removeControlCharacters(content.trim())
         }
     }
@@ -140,17 +146,52 @@ class AiTranslateEngine(
             if (candidates.length() == 0) throw IOException("Gemini returned no candidates")
             val parts = candidates.getJSONObject(0).getJSONObject("content").optJSONArray("parts") ?: throw IOException("Invalid Gemini parts")
             val content = parts.getJSONObject(0).optString("text", "")
+
+            val usage = jsonResp.optJSONObject("usageMetadata")
+            val promptTok = usage?.optInt("promptTokenCount") ?: estimateTokenCount(systemPrompt() + query)
+            val compTok = usage?.optInt("candidatesTokenCount") ?: estimateTokenCount(content)
+            recordTokens(promptTok, compTok)
+
             return FormulaPlaceholder.removeControlCharacters(content.trim())
         }
     }
 
+    data class ApiHealthResult(
+        val latencyMs: Long,
+        val promptTokens: Int,
+        val completionTokens: Int,
+        val totalTokens: Int
+    )
+
     companion object {
+        private val _sessionPromptTokens = java.util.concurrent.atomic.AtomicLong(0)
+        private val _sessionCompletionTokens = java.util.concurrent.atomic.AtomicLong(0)
+
+        val sessionPromptTokens: Long get() = _sessionPromptTokens.get()
+        val sessionCompletionTokens: Long get() = _sessionCompletionTokens.get()
+        val sessionTotalTokens: Long get() = sessionPromptTokens + sessionCompletionTokens
+
+        fun resetSessionTokens() {
+            _sessionPromptTokens.set(0)
+            _sessionCompletionTokens.set(0)
+        }
+
+        fun recordTokens(prompt: Int, completion: Int) {
+            _sessionPromptTokens.addAndGet(prompt.toLong())
+            _sessionCompletionTokens.addAndGet(completion.toLong())
+        }
+
+        fun estimateTokenCount(text: String): Int {
+            if (text.isEmpty()) return 0
+            return kotlin.math.max(1, Math.ceil(text.length / 3.8).toInt())
+        }
+
         suspend fun testConnection(
             provider: AiProvider,
             apiKey: String,
             modelName: String,
             customEndpoint: String
-        ): Result<Long> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        ): Result<ApiHealthResult> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
             val engine = AiTranslateEngine(
                 provider = provider,
@@ -160,9 +201,18 @@ class AiTranslateEngine(
                 targetLang = "vi"
             )
             runCatching {
-                val res = engine.translate("Hello")
+                val testPrompt = "Hello"
+                val res = engine.translate(testPrompt)
                 if (res.isBlank()) throw IOException("Phản hồi từ AI rỗng")
-                System.currentTimeMillis() - startTime
+                val latency = System.currentTimeMillis() - startTime
+                val promptTok = estimateTokenCount(engine.systemPrompt() + testPrompt)
+                val compTok = estimateTokenCount(res)
+                ApiHealthResult(
+                    latencyMs = latency,
+                    promptTokens = promptTok,
+                    completionTokens = compTok,
+                    totalTokens = promptTok + compTok
+                )
             }
         }
     }

@@ -3,6 +3,7 @@ package com.vitranslate.pdf.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -206,7 +207,8 @@ fun AiEngineSetupDialog(
 
                     val coroutineScope = rememberCoroutineScope()
                     var isTesting by remember { mutableStateOf(false) }
-                    var testResult by remember { mutableStateOf<Result<Long>?>(null) }
+                    var testResult by remember { mutableStateOf<Result<com.vitranslate.pdf.repository.AiTranslateEngine.ApiHealthResult>?>(null) }
+                    var sessionTokenRefreshTrigger by remember { mutableStateOf(0) }
 
                     OutlinedButton(
                         onClick = {
@@ -230,6 +232,7 @@ fun AiEngineSetupDialog(
                                 )
                                 testResult = result
                                 isTesting = false
+                                sessionTokenRefreshTrigger++
                             }
                         },
                         enabled = !isTesting,
@@ -249,20 +252,70 @@ fun AiEngineSetupDialog(
 
                     testResult?.let { res ->
                         val isSuccess = res.isSuccess
+                        val health = res.getOrNull()
                         Surface(
                             color = if (isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
                             shape = MaterialTheme.shapes.small,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = if (isSuccess) {
-                                    "Kết nối thành công! Thời gian phản hồi: ${res.getOrNull()} ms"
+                                text = if (isSuccess && health != null) {
+                                    "Kết nối thành công! Phản hồi: ${health.latencyMs} ms | Token test: ~${health.totalTokens} (Input: ${health.promptTokens}, Output: ${health.completionTokens})"
                                 } else {
                                     "Lỗi kết nối: ${res.exceptionOrNull()?.message ?: "Lỗi không xác định"}"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
                                 modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+
+                    // Session Token Counter Card
+                    val totalTokens = com.vitranslate.pdf.repository.AiTranslateEngine.sessionTotalTokens
+                    val promptTokens = com.vitranslate.pdf.repository.AiTranslateEngine.sessionPromptTokens
+                    val compTokens = com.vitranslate.pdf.repository.AiTranslateEngine.sessionCompletionTokens
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = MaterialTheme.shapes.small,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Bộ đếm Token phiên này",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (totalTokens > 0) {
+                                    TextButton(
+                                        onClick = {
+                                            com.vitranslate.pdf.repository.AiTranslateEngine.resetSessionTokens()
+                                            sessionTokenRefreshTrigger++
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) {
+                                        Text("Đặt lại", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Tổng token đã dùng: %,d tokens".format(totalTokens),
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Dữ liệu vào (Input): %,d  |  Dữ liệu ra (Output): %,d".format(promptTokens, compTokens),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

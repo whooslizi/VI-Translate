@@ -46,4 +46,22 @@ class AiTranslateEngineTest {
         assertEquals(customUrl, engine.customEndpoint)
         assertEquals("qwen2.5", engine.modelName)
     }
+
+    @Test
+    fun testTokenEstimatorAndSessionCounters() {
+        AiTranslateEngine.resetSessionTokens()
+        assertEquals(0L, AiTranslateEngine.sessionTotalTokens)
+
+        val sampleText = "Hello world this is a test for token estimation."
+        val estimated = AiTranslateEngine.estimateTokenCount(sampleText)
+        assertTrue(estimated > 5)
+
+        AiTranslateEngine.recordTokens(prompt = 20, completion = 10)
+        assertEquals(20L, AiTranslateEngine.sessionPromptTokens)
+        assertEquals(10L, AiTranslateEngine.sessionCompletionTokens)
+        assertEquals(30L, AiTranslateEngine.sessionTotalTokens)
+
+        AiTranslateEngine.resetSessionTokens()
+        assertEquals(0L, AiTranslateEngine.sessionTotalTokens)
+    }
 }
