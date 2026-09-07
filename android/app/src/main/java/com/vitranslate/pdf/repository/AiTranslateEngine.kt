@@ -143,4 +143,27 @@ class AiTranslateEngine(
             return FormulaPlaceholder.removeControlCharacters(content.trim())
         }
     }
+
+    companion object {
+        suspend fun testConnection(
+            provider: AiProvider,
+            apiKey: String,
+            modelName: String,
+            customEndpoint: String
+        ): Result<Long> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
+            val engine = AiTranslateEngine(
+                provider = provider,
+                apiKey = apiKey,
+                modelName = modelName,
+                customEndpoint = customEndpoint,
+                targetLang = "vi"
+            )
+            runCatching {
+                val res = engine.translate("Hello")
+                if (res.isBlank()) throw IOException("Phản hồi từ AI rỗng")
+                System.currentTimeMillis() - startTime
+            }
+        }
+    }
 }

@@ -9,6 +9,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.vitranslate.pdf.repository.AiProvider
+import kotlinx.coroutines.launch
 
 enum class SelectedEngineType {
     GOOGLE_DEFAULT,
@@ -201,6 +202,69 @@ fun AiEngineSetupDialog(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
+
+                    val coroutineScope = rememberCoroutineScope()
+                    var isTesting by remember { mutableStateOf(false) }
+                    var testResult by remember { mutableStateOf<Result<Long>?>(null) }
+
+                    OutlinedButton(
+                        onClick = {
+                            isTesting = true
+                            testResult = null
+                            coroutineScope.launch {
+                                val provider = when (selectedType) {
+                                    SelectedEngineType.DEEPSEEK -> com.vitranslate.pdf.repository.AiProvider.DEEPSEEK
+                                    SelectedEngineType.GEMINI -> com.vitranslate.pdf.repository.AiProvider.GEMINI
+                                    SelectedEngineType.OPENROUTER -> com.vitranslate.pdf.repository.AiProvider.OPENROUTER
+                                    SelectedEngineType.GROQ -> com.vitranslate.pdf.repository.AiProvider.GROQ
+                                    SelectedEngineType.SILICONFLOW -> com.vitranslate.pdf.repository.AiProvider.SILICONFLOW
+                                    SelectedEngineType.CUSTOM_OPENAI -> com.vitranslate.pdf.repository.AiProvider.CUSTOM_OPENAI
+                                    else -> com.vitranslate.pdf.repository.AiProvider.OPENAI
+                                }
+                                val result = com.vitranslate.pdf.repository.AiTranslateEngine.testConnection(
+                                    provider = provider,
+                                    apiKey = apiKeyText,
+                                    modelName = modelNameText,
+                                    customEndpoint = endpointText
+                                )
+                                testResult = result
+                                isTesting = false
+                            }
+                        },
+                        enabled = !isTesting,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Đang kiểm tra kết nối...")
+                        } else {
+                            Text("Kiểm tra kết nối API")
+                        }
+                    }
+
+                    testResult?.let { res ->
+                        val isSuccess = res.isSuccess
+                        Surface(
+                            color = if (isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isSuccess) {
+                                    "Kết nối thành công! Thời gian phản hồi: ${res.getOrNull()} ms"
+                                } else {
+                                    "Lỗi kết nối: ${res.exceptionOrNull()?.message ?: "Lỗi không xác định"}"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isSuccess) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
                     }
                 }
             }
