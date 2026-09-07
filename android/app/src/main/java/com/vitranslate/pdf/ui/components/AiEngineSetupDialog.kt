@@ -63,10 +63,12 @@ fun AiEngineSetupDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Bảo mật API Key: Mã khóa API chỉ giữ tạm trong RAM cho phiên hiện tại, KHÔNG BAO GIỜ lưu lên đĩa.",
+                        text = "Cam kết bảo mật & Quyền riêng tư:\n" +
+                                "• 100% Cục bộ & Server-less: Ứng dụng này không có máy chủ trung gian. Mọi quá trình xử lý PDF và giao tiếp API diễn ra trực tiếp trên điện thoại của bạn.\n" +
+                                "• API Key được bảo vệ: Token API chỉ gửi trực tiếp từ thiết bị của bạn đến nhà cung cấp AI (OpenAI, Gemini, DeepSeek...) qua HTTPS mã hóa, và chỉ giữ tạm trong bộ nhớ RAM.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(8.dp)
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
 
