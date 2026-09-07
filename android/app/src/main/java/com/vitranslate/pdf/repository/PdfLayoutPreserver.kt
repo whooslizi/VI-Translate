@@ -177,7 +177,7 @@ class PdfLayoutPreserver(private val context: Context) {
                                     // Skip translating standalone math formulas and numeric choices, but preserve them in translations list
                                     if (textToTranslate.isBlank() || isPureMathOrFormula(textToTranslate)) {
                                         skippedMathCount++
-                                        translations.add(ParagraphTranslation(paragraph, originalText))
+                                        translations.add(ParagraphTranslation(paragraph, originalText, isMath = true))
                                         continue
                                     }
 
@@ -207,14 +207,15 @@ class PdfLayoutPreserver(private val context: Context) {
                                     } else {
                                         translatedRemainder
                                     }
-                                    translations.add(ParagraphTranslation(paragraph, translatedText))
+                                    translations.add(ParagraphTranslation(paragraph, translatedText, isMath = false))
                                 }
 
                                 onLog?.invoke("Trang ${pageIndex + 1}/$totalPages: ${textBlocks.size} dòng gộp thành ${paragraphs.size} đoạn. Đã dịch: ${translations.size}, Bỏ qua công thức: $skippedMathCount")
 
                                 if (translations.isNotEmpty()) {
-                                    // Strip original text from page streams so vector drawings & diagrams remain 100% pristine
-                                    val sourceTextRemoved = stripTextFromPage(document, page)
+                                    val hasMathInPage = translations.any { it.isMath }
+                                    // If page contains math formulas, DO NOT strip text from page stream so original math font glyphs are preserved 100%!
+                                    val sourceTextRemoved = if (!hasMathInPage) stripTextFromPage(document, page) else false
 
                                     PDPageContentStream(
                                         document,
@@ -225,6 +226,9 @@ class PdfLayoutPreserver(private val context: Context) {
                                     ).use { stream ->
                                         for (i in translations.indices) {
                                             val translation = translations[i]
+                                            // Math formulas are preserved in original PDF stream, skip redrawing them!
+                                            if (translation.isMath) continue
+
                                             val paragraph = translation.paragraph
                                             val cleanedText = stripTagsAndPlaceholders(translation.translated)
                                             val text = sanitizeForFont(cleanedText, font)
@@ -1441,7 +1445,8 @@ class PdfLayoutPreserver(private val context: Context) {
 
     private class ParagraphTranslation(
         val paragraph: Paragraph,
-        val translated: String
+        val translated: String,
+        val isMath: Boolean = false
     )
 
     /**

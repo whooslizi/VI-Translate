@@ -59,8 +59,13 @@ fun ControlsView(
     val engineDisplayName = remember(engineType) {
         when (engineType) {
             SelectedEngineType.GOOGLE_DEFAULT -> "Google Translate (Mặc định)"
-            SelectedEngineType.OPENAI -> "OpenAI / Custom LLM"
-            SelectedEngineType.GEMINI -> "Google Gemini AI"
+            SelectedEngineType.DEEPSEEK -> "DeepSeek AI (V3/R1)"
+            SelectedEngineType.GEMINI -> "Google Gemini AI (2.0/1.5)"
+            SelectedEngineType.OPENAI -> "OpenAI (GPT-4o)"
+            SelectedEngineType.OPENROUTER -> "OpenRouter"
+            SelectedEngineType.GROQ -> "Groq (Ultra Fast)"
+            SelectedEngineType.SILICONFLOW -> "SiliconCloud (DeepSeek)"
+            SelectedEngineType.CUSTOM_OPENAI -> "Custom / Local LLM"
         }
     }
 

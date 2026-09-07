@@ -12,7 +12,11 @@ import java.util.concurrent.TimeUnit
 
 enum class AiProvider {
     OPENAI,
+    DEEPSEEK,
     GEMINI,
+    OPENROUTER,
+    GROQ,
+    SILICONFLOW,
     CUSTOM_OPENAI
 }
 
@@ -20,7 +24,7 @@ class AiTranslateEngine(
     val provider: AiProvider = AiProvider.OPENAI,
     private val apiKey: String = "",
     val modelName: String = "gpt-4o-mini",
-    val customEndpoint: String = "https://api.openai.com/v1/chat/completions",
+    val customEndpoint: String = "",
     val targetLang: String = "vi"
 ) : TranslationEngine {
 
@@ -40,8 +44,8 @@ class AiTranslateEngine(
 
         val encodedText = FormulaPlaceholder.encodeFormulaPlaceholders(text)
         val rawTranslation = when (provider) {
-            AiProvider.OPENAI, AiProvider.CUSTOM_OPENAI -> fetchOpenAiTranslation(encodedText)
             AiProvider.GEMINI -> fetchGeminiTranslation(encodedText)
+            else -> fetchOpenAiCompatibleTranslation(encodedText)
         }
 
         val restoredText = FormulaPlaceholder.restoreFormulaPlaceholders(text, rawTranslation)
@@ -51,16 +55,28 @@ class AiTranslateEngine(
 
     private fun systemPrompt(): String {
         val langName = if (targetLang.equals("vi", ignoreCase = true)) "Vietnamese" else targetLang
-        return "Translate into $langName. Keep tags like <b0></b0> and <s1></s1> exactly as they are. Output only the translated text."
+        return "You are a professional document translator. Translate into $langName.\n" +
+                "CRITICAL INSTRUCTIONS:\n" +
+                "1. Preserve ALL tags like <b0></b0>, <b1></b1>, <s1></s1> in their exact position.\n" +
+                "2. Do NOT translate or alter tag IDs.\n" +
+                "3. Output ONLY the raw translated text with tags intact. Do NOT add Markdown code blocks or explanation."
     }
 
-    private fun fetchOpenAiTranslation(query: String): String {
-        val endpoint = if (provider == AiProvider.CUSTOM_OPENAI && customEndpoint.isNotBlank()) {
-            customEndpoint
-        } else {
-            "https://api.openai.com/v1/chat/completions"
+    private fun resolveEndpoint(): String {
+        if (customEndpoint.isNotBlank()) return customEndpoint
+        return when (provider) {
+            AiProvider.OPENAI -> "https://api.openai.com/v1/chat/completions"
+            AiProvider.DEEPSEEK -> "https://api.deepseek.com/v1/chat/completions"
+            AiProvider.OPENROUTER -> "https://openrouter.ai/api/v1/chat/completions"
+            AiProvider.GROQ -> "https://api.groq.com/openai/v1/chat/completions"
+            AiProvider.SILICONFLOW -> "https://api.siliconflow.cn/v1/chat/completions"
+            AiProvider.CUSTOM_OPENAI -> "http://10.0.2.2:11434/v1/chat/completions"
+            else -> "https://api.openai.com/v1/chat/completions"
         }
+    }
 
+    private fun fetchOpenAiCompatibleTranslation(query: String): String {
+        val endpoint = resolveEndpoint()
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "system")
@@ -75,7 +91,7 @@ class AiTranslateEngine(
         val json = JSONObject().apply {
             put("model", modelName)
             put("messages", messages)
-            put("temperature", 0.3)
+            put("temperature", 0.1)
         }
 
         val requestBuilder = Request.Builder()
@@ -97,7 +113,7 @@ class AiTranslateEngine(
     }
 
     private fun fetchGeminiTranslation(query: String): String {
-        val model = if (modelName.isNotBlank()) modelName else "gemini-1.5-flash"
+        val model = if (modelName.isNotBlank()) modelName else "gemini-2.0-flash"
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
 
         val contents = JSONArray().apply {

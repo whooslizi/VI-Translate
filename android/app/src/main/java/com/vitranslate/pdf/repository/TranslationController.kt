@@ -249,13 +249,48 @@ object TranslationController {
                 provider = AiProvider.OPENAI,
                 apiKey = aiApiKey,
                 modelName = aiModelName.ifBlank { "gpt-4o-mini" },
-                customEndpoint = aiEndpoint.ifBlank { "https://api.openai.com/v1/chat/completions" },
+                customEndpoint = aiEndpoint,
+                targetLang = _selectedLanguage.value.code
+            )
+            com.vitranslate.pdf.ui.components.SelectedEngineType.DEEPSEEK -> AiTranslateEngine(
+                provider = AiProvider.DEEPSEEK,
+                apiKey = aiApiKey,
+                modelName = aiModelName.ifBlank { "deepseek-chat" },
+                customEndpoint = aiEndpoint,
                 targetLang = _selectedLanguage.value.code
             )
             com.vitranslate.pdf.ui.components.SelectedEngineType.GEMINI -> AiTranslateEngine(
                 provider = AiProvider.GEMINI,
                 apiKey = aiApiKey,
-                modelName = aiModelName.ifBlank { "gemini-1.5-flash" },
+                modelName = aiModelName.ifBlank { "gemini-2.0-flash" },
+                targetLang = _selectedLanguage.value.code
+            )
+            com.vitranslate.pdf.ui.components.SelectedEngineType.OPENROUTER -> AiTranslateEngine(
+                provider = AiProvider.OPENROUTER,
+                apiKey = aiApiKey,
+                modelName = aiModelName.ifBlank { "deepseek/deepseek-chat" },
+                customEndpoint = aiEndpoint,
+                targetLang = _selectedLanguage.value.code
+            )
+            com.vitranslate.pdf.ui.components.SelectedEngineType.GROQ -> AiTranslateEngine(
+                provider = AiProvider.GROQ,
+                apiKey = aiApiKey,
+                modelName = aiModelName.ifBlank { "llama-3.3-70b-versatile" },
+                customEndpoint = aiEndpoint,
+                targetLang = _selectedLanguage.value.code
+            )
+            com.vitranslate.pdf.ui.components.SelectedEngineType.SILICONFLOW -> AiTranslateEngine(
+                provider = AiProvider.SILICONFLOW,
+                apiKey = aiApiKey,
+                modelName = aiModelName.ifBlank { "deepseek-ai/DeepSeek-V3" },
+                customEndpoint = aiEndpoint,
+                targetLang = _selectedLanguage.value.code
+            )
+            com.vitranslate.pdf.ui.components.SelectedEngineType.CUSTOM_OPENAI -> AiTranslateEngine(
+                provider = AiProvider.CUSTOM_OPENAI,
+                apiKey = aiApiKey,
+                modelName = aiModelName.ifBlank { "custom-model" },
+                customEndpoint = aiEndpoint,
                 targetLang = _selectedLanguage.value.code
             )
             com.vitranslate.pdf.ui.components.SelectedEngineType.GOOGLE_DEFAULT -> null

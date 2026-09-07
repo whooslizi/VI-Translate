@@ -13,7 +13,12 @@ import com.vitranslate.pdf.repository.AiProvider
 enum class SelectedEngineType {
     GOOGLE_DEFAULT,
     OPENAI,
-    GEMINI
+    DEEPSEEK,
+    GEMINI,
+    OPENROUTER,
+    GROQ,
+    SILICONFLOW,
+    CUSTOM_OPENAI
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +46,7 @@ fun AiEngineSetupDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(
-                text = "Cấu hình AI Dịch (LLM)",
+                text = "Cấu hình AI Dịch (LLMs)",
                 style = MaterialTheme.typography.titleLarge
             )
         },
@@ -50,7 +55,7 @@ fun AiEngineSetupDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -58,15 +63,15 @@ fun AiEngineSetupDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Bảo mật API Key: Mã khóa API token chỉ được giữ tạm thời trong bộ nhớ RAM cho phiên dịch hiện tại, KHÔNG BAO GIỜ lưu vào bộ nhớ máy hay file nhật ký.",
+                        text = "Bảo mật API Key: Mã khóa API chỉ giữ tạm trong RAM cho phiên hiện tại, KHÔNG BAO GIỜ lưu lên đĩa.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(10.dp)
+                        modifier = Modifier.padding(8.dp)
                     )
                 }
 
                 Text(
-                    text = "Chọn công cụ dịch:",
+                    text = "Chọn nhà cung cấp AI:",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -76,20 +81,19 @@ fun AiEngineSetupDialog(
                         selected = selectedType == SelectedEngineType.GOOGLE_DEFAULT,
                         onClick = { selectedType = SelectedEngineType.GOOGLE_DEFAULT }
                     )
-                    Text("Google Translate (Mặc định, miễn phí)")
+                    Text("Google Translate (Miễn phí)")
                 }
 
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     RadioButton(
-                        selected = selectedType == SelectedEngineType.OPENAI,
+                        selected = selectedType == SelectedEngineType.DEEPSEEK,
                         onClick = {
-                            selectedType = SelectedEngineType.OPENAI
-                            if (modelNameText.isBlank() || modelNameText.contains("gemini")) {
-                                modelNameText = "gpt-4o-mini"
-                            }
+                            selectedType = SelectedEngineType.DEEPSEEK
+                            modelNameText = "deepseek-chat"
+                            endpointText = "https://api.deepseek.com/v1/chat/completions"
                         }
                     )
-                    Text("OpenAI / Custom LLM (GPT-4o, Ollama, etc.)")
+                    Text("DeepSeek (DeepSeek V3 / R1)")
                 }
 
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -97,12 +101,71 @@ fun AiEngineSetupDialog(
                         selected = selectedType == SelectedEngineType.GEMINI,
                         onClick = {
                             selectedType = SelectedEngineType.GEMINI
-                            if (modelNameText.isBlank() || modelNameText.contains("gpt")) {
-                                modelNameText = "gemini-1.5-flash"
+                            modelNameText = "gemini-2.0-flash"
+                        }
+                    )
+                    Text("Google Gemini (Gemini 2.0 / 1.5 Flash)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedType == SelectedEngineType.OPENAI,
+                        onClick = {
+                            selectedType = SelectedEngineType.OPENAI
+                            modelNameText = "gpt-4o-mini"
+                            endpointText = "https://api.openai.com/v1/chat/completions"
+                        }
+                    )
+                    Text("OpenAI (GPT-4o, GPT-4o-mini)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedType == SelectedEngineType.OPENROUTER,
+                        onClick = {
+                            selectedType = SelectedEngineType.OPENROUTER
+                            modelNameText = "deepseek/deepseek-chat"
+                            endpointText = "https://openrouter.ai/api/v1/chat/completions"
+                        }
+                    )
+                    Text("OpenRouter (Claude, Llama, DeepSeek)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedType == SelectedEngineType.GROQ,
+                        onClick = {
+                            selectedType = SelectedEngineType.GROQ
+                            modelNameText = "llama-3.3-70b-versatile"
+                            endpointText = "https://api.groq.com/openai/v1/chat/completions"
+                        }
+                    )
+                    Text("Groq (Llama 3.3 70B, DeepSeek R1)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedType == SelectedEngineType.SILICONFLOW,
+                        onClick = {
+                            selectedType = SelectedEngineType.SILICONFLOW
+                            modelNameText = "deepseek-ai/DeepSeek-V3"
+                            endpointText = "https://api.siliconflow.cn/v1/chat/completions"
+                        }
+                    )
+                    Text("SiliconFlow (SiliconCloud)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = selectedType == SelectedEngineType.CUSTOM_OPENAI,
+                        onClick = {
+                            selectedType = SelectedEngineType.CUSTOM_OPENAI
+                            if (endpointText.isBlank() || endpointText.contains("openai.com")) {
+                                endpointText = "http://10.0.2.2:11434/v1/chat/completions"
                             }
                         }
                     )
-                    Text("Google Gemini (Gemini 1.5/2.0 Flash)")
+                    Text("Custom LLM / Local (Ollama, LM Studio)")
                 }
 
                 if (selectedType != SelectedEngineType.GOOGLE_DEFAULT) {
@@ -123,12 +186,12 @@ fun AiEngineSetupDialog(
                     OutlinedTextField(
                         value = modelNameText,
                         onValueChange = { modelNameText = it },
-                        label = { Text("Tên Model (VD: gpt-4o-mini / gemini-1.5-flash)") },
+                        label = { Text("Tên Model") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    if (selectedType == SelectedEngineType.OPENAI) {
+                    if (selectedType == SelectedEngineType.CUSTOM_OPENAI || selectedType == SelectedEngineType.OPENAI) {
                         OutlinedTextField(
                             value = endpointText,
                             onValueChange = { endpointText = it },
